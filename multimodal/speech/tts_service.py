@@ -1,9 +1,10 @@
 # 语音合成服务
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Optional
+import logging
 import pyttsx3
-import io
-import wave
-from multimodal.speech.dialect_recognizer import DialectRecognizer
+import asyncio
+
+logger = logging.getLogger(__name__)
 
 class TTSService:
     """语音合成服务"""
@@ -11,130 +12,149 @@ class TTSService:
     def __init__(self, game_id: str):
         self.game_id = game_id
         self.engine = pyttsx3.init()
-        self.dialect_recognizer = DialectRecognizer(game_id)
         self._configure_engine()
+        logger.info(f"TTS服务初始化完成: {game_id}")
     
     def _configure_engine(self):
-        """配置语音合成引擎"""
-        # 设置语音参数
-        voices = self.engine.getProperty('voices')
-        
-        # 选择中文语音
-        for voice in voices:
-            if 'chinese' in voice.name.lower() or 'zh' in voice.id.lower():
-                self.engine.setProperty('voice', voice.id)
-                break
-        
-        # 设置语速和音量
-        self.engine.setProperty('rate', 150)  # 语速
-        self.engine.setProperty('volume', 0.9)  # 音量
+        """配置TTS引擎"""
+        try:
+            # 设置语音参数
+            voices = self.engine.getProperty('voices')
+            
+            # 选择中文语音
+            for voice in voices:
+                if 'chinese' in voice.name.lower() or 'zh' in voice.id.lower():
+                    self.engine.setProperty('voice', voice.id)
+                    break
+            
+            # 设置语速和音量
+            self.engine.setProperty('rate', 150)  # 语速
+            self.engine.setProperty('volume', 0.8)  # 音量
+            
+        except Exception as e:
+            logger.error(f"TTS引擎配置失败: {str(e)}")
     
-    async def synthesize_speech(
-        self, 
-        text: str, 
-        language: str = "zh-CN",
-        user_context: Optional[Dict] = None
-    ) -> bytes:
+    async def synthesize_speech(self, text: str, user_context: Optional[Dict] = None) -> Dict[str, Any]:
         """
         语音合成
         
         Args:
             text: 要合成的文本
-            language: 语言代码
             user_context: 用户上下文
             
         Returns:
-            音频数据
+            合成结果
         """
         try:
-            # 1. 文本预处理
-            processed_text = await self._preprocess_text(text, user_context)
-            
-            # 2. 根据用户类型调整语音参数
+            # 根据用户上下文调整语音参数
             if user_context:
-                await self._adjust_for_user_type(user_context)
+                self._adjust_for_user_context(user_context)
             
-            # 3. 生成语音
-            audio_data = await self._generate_speech(processed_text)
+            # 执行语音合成
+            await self._synthesize_async(text)
             
-            return audio_data
+            result = {
+                'text': text,
+                'success': True,
+                'duration': len(text) * 0.1,  # 估算时长
+                'voice_settings': self._get_voice_settings()
+            }
+            
+            logger.info(f"语音合成完成: {text[:50]}...")
+            return result
             
         except Exception as e:
-            raise Exception(f"语音合成失败: {e}")
+            logger.error(f"语音合成失败: {str(e)}")
+            return {
+                'text': text,
+                'success': False,
+                'error': str(e)
+            }
     
-    async def _preprocess_text(self, text: str, user_context: Optional[Dict]) -> str:
-        """文本预处理"""
-        if not text:
-            return text
-        
-        # 基础清理
-        text = text.strip()
-        
-        # 根据用户类型特殊处理
-        if user_context:
-            user_type = user_context.get('user_type', 'normal')
-            
-            if user_type == 'elderly':
-                # 老年用户：添加停顿，简化语言
-                text = self._add_pauses_for_elderly(text)
-            elif user_type == 'visual_impairment':
-                # 视障用户：添加语音提示
-                text = self._add_voice_cues(text)
-        
-        return text
+    async def _synthesize_async(self, text: str):
+        """异步语音合成"""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self.engine.say, text)
+        await loop.run_in_executor(None, self.engine.runAndWait)
     
-    def _add_pauses_for_elderly(self, text: str) -> str:
-        """为老年用户添加停顿"""
-        # 在标点符号后添加停顿标记
-        text = text.replace('。', '。...')
-        text = text.replace('，', '，..')
-        text = text.replace('！', '！...')
-        text = text.replace('？', '？...')
-        return text
-    
-    def _add_voice_cues(self, text: str) -> str:
-        """为视障用户添加语音提示"""
-        # 在重要信息前添加语音提示
-        text = text.replace('注意：', '[语音提示] 注意：')
-        text = text.replace('重要：', '[语音提示] 重要：')
-        return text
-    
-    async def _adjust_for_user_type(self, user_context: Dict):
-        """根据用户类型调整语音参数"""
+    def _adjust_for_user_context(self, user_context: Dict[str, Any]):
+        """根据用户上下文调整语音参数"""
         user_type = user_context.get('user_type', 'normal')
         
         if user_type == 'elderly':
             # 老年用户：降低语速，提高音量
             self.engine.setProperty('rate', 120)
-            self.engine.setProperty('volume', 1.0)
+            self.engine.setProperty('volume', 0.9)
         elif user_type == 'hearing_impairment':
-            # 听障用户：提高音量
+            # 听障用户：提高音量，降低语速
+            self.engine.setProperty('rate', 130)
             self.engine.setProperty('volume', 1.0)
         elif user_type == 'visual_impairment':
-            # 视障用户：标准设置
+            # 视障用户：正常语速，适中音量
             self.engine.setProperty('rate', 150)
-            self.engine.setProperty('volume', 0.9)
+            self.engine.setProperty('volume', 0.8)
     
-    async def _generate_speech(self, text: str) -> bytes:
-        """生成语音"""
-        # 使用pyttsx3生成语音
-        audio_buffer = io.BytesIO()
+    def _get_voice_settings(self) -> Dict[str, Any]:
+        """获取当前语音设置"""
+        return {
+            'rate': self.engine.getProperty('rate'),
+            'volume': self.engine.getProperty('volume'),
+            'voice': self.engine.getProperty('voice')
+        }
+    
+    async def synthesize_with_emotion(self, text: str, emotion: str = 'neutral') -> Dict[str, Any]:
+        """
+        带情感的语音合成
         
-        # 这里需要将pyttsx3的输出重定向到内存缓冲区
-        # 实际实现可能需要使用其他TTS库如gTTS或Azure Speech
-        
-        # 临时实现：返回空字节
-        return b""
-    
-    def set_speech_rate(self, rate: int):
-        """设置语速"""
-        self.engine.setProperty('rate', rate)
-    
-    def set_volume(self, volume: float):
-        """设置音量"""
-        self.engine.setProperty('volume', volume)
+        Args:
+            text: 要合成的文本
+            emotion: 情感类型
+            
+        Returns:
+            合成结果
+        """
+        try:
+            # 根据情感调整语音参数
+            if emotion == 'excited':
+                self.engine.setProperty('rate', 180)
+                self.engine.setProperty('volume', 0.9)
+            elif emotion == 'calm':
+                self.engine.setProperty('rate', 120)
+                self.engine.setProperty('volume', 0.7)
+            elif emotion == 'urgent':
+                self.engine.setProperty('rate', 200)
+                self.engine.setProperty('volume', 1.0)
+            
+            result = await self.synthesize_speech(text)
+            result['emotion'] = emotion
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"情感语音合成失败: {str(e)}")
+            return await self.synthesize_speech(text)
     
     def get_available_voices(self) -> list:
-        """获取可用语音列表"""
-        voices = self.engine.getProperty('voices')
-        return [{"id": voice.id, "name": voice.name} for voice in voices]
+        """获取可用的语音列表"""
+        try:
+            voices = self.engine.getProperty('voices')
+            return [
+                {
+                    'id': voice.id,
+                    'name': voice.name,
+                    'languages': voice.languages
+                }
+                for voice in voices
+            ]
+        except Exception as e:
+            logger.error(f"获取语音列表失败: {str(e)}")
+            return []
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """获取服务统计信息"""
+        return {
+            'game_id': self.game_id,
+            'available_voices': len(self.get_available_voices()),
+            'current_settings': self._get_voice_settings(),
+            'emotion_support': True
+        }

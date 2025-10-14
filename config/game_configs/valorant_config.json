@@ -1,0 +1,51 @@
+{
+  "game_name": "无畏契约",
+  "game_id": "valorant",
+  "version": "8.06",
+  "platforms": ["PC"],
+  "languages": ["zh-CN", "en-US", "ja-JP"],
+
+  "crawler_config": {
+    "official_sites": [
+      "https://playvalorant.com"
+    ],
+    "community_sites": [
+      "https://tracker.gg/valorant",
+      "https://www.reddit.com/r/VALORANT/"
+    ],
+    "update_frequency": "daily",
+    "max_pages": 600
+  },
+
+  "knowledge_categories": [
+    "特工与技能",
+    "武器与经济",
+    "地图战术",
+    "评级与匹配",
+    "手雷与道具",
+    "版本改动",
+    "赛事与观赛",
+    "Bug反馈"
+  ],
+
+  "qa_templates": {
+    "agent_query": "{agent} 的技能如何使用？",
+    "eco_query": "如何在第 {round} 局进行经济选择？",
+    "map_query": "在 {map} 地图如何防守A点？"
+  },
+
+  "accessibility_config": {
+    "elderly_support": true,
+    "visual_impairment_support": true,
+    "hearing_impairment_support": true,
+    "cognitive_friendly_mode": true
+  },
+
+  "health_config": {
+    "max_session_time": 5400,
+    "break_reminder_interval": 1500,
+    "blue_light_filter": true
+  }
+}
+
+

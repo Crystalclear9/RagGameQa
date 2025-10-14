@@ -45,22 +45,41 @@ class Reranker:
         return reranked_docs
     
     async def _calculate_relevance(self, query: str, document: str) -> float:
-        """计算查询和文档的相关性分数"""
-        # 使用BERT计算语义相似度
-        inputs = self.tokenizer(
-            query, 
-            document, 
-            return_tensors="pt", 
-            truncation=True, 
-            max_length=512
-        )
+        """计算查询和文档的相关性分数（双塔CLS余弦）"""
+        try:
+            # 分别编码查询与文档，取CLS
+            q_inputs = self.tokenizer(
+                query,
+                return_tensors="pt",
+                truncation=True,
+                max_length=256,
+                padding=True,
+            )
+            d_inputs = self.tokenizer(
+                document,
+                return_tensors="pt",
+                truncation=True,
+                max_length=512,
+                padding=True,
+            )
+
+            with torch.no_grad():
+                q_out = self.model(**q_inputs).last_hidden_state[:, 0, :]
+                d_out = self.model(**d_inputs).last_hidden_state[:, 0, :]
+                similarity = torch.cosine_similarity(q_out, d_out, dim=1)
+                return similarity.item()
+        except Exception:
+            return self._fallback_similarity(query, document)
+    
+    def _fallback_similarity(self, query: str, document: str) -> float:
+        """备用相似度计算方法"""
+        query_words = set(query.lower().split())
+        doc_words = set(document.lower().split())
         
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-            # 使用CLS token的表示计算相似度
-            query_repr = outputs.last_hidden_state[:, 0, :]
-            doc_repr = outputs.last_hidden_state[:, 1, :]
-            
-            # 计算余弦相似度
-            similarity = torch.cosine_similarity(query_repr, doc_repr, dim=1)
-            return similarity.item()
+        if not query_words or not doc_words:
+            return 0.0
+        
+        intersection = len(query_words.intersection(doc_words))
+        union = len(query_words.union(doc_words))
+        
+        return intersection / union if union > 0 else 0.0

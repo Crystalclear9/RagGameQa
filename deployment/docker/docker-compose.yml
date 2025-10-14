@@ -1,49 +1,140 @@
-# docker-compose.yml
+# 基于RAG的游戏问答系统 Docker Compose配置
 version: '3.8'
 
 services:
-  rag-api:
-    build: .
+  # 主应用服务
+  rag-game-qa:
+    build:
+      context: ../../
+      dockerfile: deployment/docker/Dockerfile
     ports:
       - "8000:8000"
     environment:
-      - DEBUG=False
-      - DATABASE_URL=postgresql://user:password@postgres:5432/rag_game_qa
+      - DATABASE_URL=postgresql://rag_user:rag_password@postgres:5432/rag_game_qa
       - REDIS_URL=redis://redis:6379
+      - DEBUG=false
+      - LOG_LEVEL=info
     depends_on:
       - postgres
       - redis
-      - qdrant
     volumes:
-      - ./logs:/app/logs
-      - ./data:/app/data
+      - ../../logs:/app/logs
+      - ../../data:/app/data
+    restart: unless-stopped
+    networks:
+      - rag-network
 
+  # PostgreSQL数据库
   postgres:
-    image: postgres:13
+    image: postgres:15-alpine
     environment:
       - POSTGRES_DB=rag_game_qa
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=rag_user
+      - POSTGRES_PASSWORD=rag_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - rag-network
 
+  # Redis缓存
   redis:
-    image: redis:6-alpine
-    ports:
-      - "6379:6379"
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
-
-  qdrant:
-    image: qdrant/qdrant:latest
     ports:
-      - "6333:6333"
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  # Nginx反向代理
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
     volumes:
-      - qdrant_data:/qdrant/storage
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - rag-game-qa
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  # 监控服务
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  # Grafana可视化
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  # 日志收集
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    restart: unless-stopped
+    networks:
+      - rag-network
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    restart: unless-stopped
+    networks:
+      - rag-network
 
 volumes:
   postgres_data:
   redis_data:
-  qdrant_data:
+  prometheus_data:
+  grafana_data:
+  elasticsearch_data:
+
+networks:
+  rag-network:
+    driver: bridge

@@ -1,0 +1,51 @@
+{
+  "game_name": "Apex英雄",
+  "game_id": "apex",
+  "version": "19",
+  "platforms": ["PC", "PS5", "Xbox"],
+  "languages": ["zh-CN", "en-US", "ja-JP"],
+
+  "crawler_config": {
+    "official_sites": [
+      "https://www.ea.com/games/apex-legends"
+    ],
+    "community_sites": [
+      "https://www.apexlegendsstatus.com/",
+      "https://www.reddit.com/r/apexlegends/"
+    ],
+    "update_frequency": "daily",
+    "max_pages": 600
+  },
+
+  "knowledge_categories": [
+    "传奇与技能",
+    "武器与配件",
+    "地图与轮换",
+    "排名与分数",
+    "移动与枪法",
+    "版本改动",
+    "赛事信息",
+    "Bug反馈"
+  ],
+
+  "qa_templates": {
+    "legend_query": "{legend} 的技能如何组合？",
+    "weapon_query": "当前版本什么武器强势？",
+    "rank_query": "如何快速上分到 {rank}?"
+  },
+
+  "accessibility_config": {
+    "elderly_support": true,
+    "visual_impairment_support": true,
+    "hearing_impairment_support": true,
+    "cognitive_friendly_mode": true
+  },
+
+  "health_config": {
+    "max_session_time": 5400,
+    "break_reminder_interval": 1500,
+    "blue_light_filter": true
+  }
+}
+
+

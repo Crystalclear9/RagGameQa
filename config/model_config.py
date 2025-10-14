@@ -1,9 +1,13 @@
 # 模型配置文件
 from typing import Dict, List, Any
 
+
 class ModelConfig:
-    """模型配置类"""
-    
+    """模型配置类
+
+    统一管理各类模型的可选配置，并提供便捷的查询与校验方法。
+    """
+
     # RAG模型配置
     RAG_MODELS = {
         "deepseek-r1": {
@@ -19,7 +23,7 @@ class ModelConfig:
             "top_p": 0.9
         }
     }
-    
+
     # 嵌入模型配置
     EMBEDDING_MODELS = {
         "sentence-transformers": {
@@ -33,7 +37,7 @@ class ModelConfig:
             "max_length": 512
         }
     }
-    
+
     # 分类模型配置
     CLASSIFICATION_MODELS = {
         "bert": {
@@ -47,7 +51,7 @@ class ModelConfig:
             "dropout": 0.3
         }
     }
-    
+
     # 多模态模型配置
     MULTIMODAL_MODELS = {
         "asr": {
@@ -64,17 +68,37 @@ class ModelConfig:
             "max_length": 100
         }
     }
-    
+
+    # 类型到配置映射，便于统一查询
+    _TYPE_TO_CONFIG: Dict[str, Dict[str, Any]] = {
+        "rag": RAG_MODELS,
+        "embedding": EMBEDDING_MODELS,
+        "classification": CLASSIFICATION_MODELS,
+        "multimodal": MULTIMODAL_MODELS,
+    }
+
     @classmethod
     def get_model_config(cls, model_type: str, model_name: str) -> Dict[str, Any]:
-        """获取指定模型配置"""
-        if model_type in cls.RAG_MODELS:
-            return cls.RAG_MODELS.get(model_name, {})
-        elif model_type in cls.EMBEDDING_MODELS:
-            return cls.EMBEDDING_MODELS.get(model_name, {})
-        elif model_type in cls.CLASSIFICATION_MODELS:
-            return cls.CLASSIFICATION_MODELS.get(model_name, {})
-        elif model_type in cls.MULTIMODAL_MODELS:
-            return cls.MULTIMODAL_MODELS.get(model_name, {})
-        else:
-            return {}
+        """获取指定模型配置
+
+        Args:
+            model_type: 模型类型（rag | embedding | classification | multimodal）
+            model_name: 具体模型名称key
+
+        Returns:
+            对应模型配置，不存在则返回空字典
+        """
+        model_type = (model_type or "").strip().lower()
+        config_pool = cls._TYPE_TO_CONFIG.get(model_type, {})
+        return config_pool.get(model_name, {})
+
+    @classmethod
+    def list_models(cls, model_type: str) -> List[str]:
+        """列出某类可用模型名称列表"""
+        model_type = (model_type or "").strip().lower()
+        return list(cls._TYPE_TO_CONFIG.get(model_type, {}).keys())
+
+    @classmethod
+    def has_model(cls, model_type: str, model_name: str) -> bool:
+        """判断指定模型是否存在"""
+        return model_name in cls._TYPE_TO_CONFIG.get((model_type or "").strip().lower(), {})

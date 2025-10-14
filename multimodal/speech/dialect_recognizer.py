@@ -1,154 +1,176 @@
 # 方言识别器
-from typing import Optional, Dict, Any
-import torch
-from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
-import librosa
-import numpy as np
+from typing import Dict, Any, List
+import logging
+import re
+
+logger = logging.getLogger(__name__)
 
 class DialectRecognizer:
-    """方言识别器，支持粤语、川渝方言等"""
+    """方言识别器"""
     
-    def __init__(self, game_id: str):
-        self.game_id = game_id
-        self.supported_dialects = {
-            "yue": "粤语",
-            "sichuan": "川渝方言", 
-            "zh": "普通话"
+    def __init__(self):
+        # 方言特征词库
+        self.dialect_patterns = {
+            'cantonese': {
+                'words': ['嘅', '咗', '咁', '唔', '係', '嘅', '咩', '嘞', '啲', '佢'],
+                'phrases': ['唔该', '多谢', '点解', '做乜', '点样']
+            },
+            'sichuanese': {
+                'words': ['啥', '咋', '嘛', '噻', '哈', '撒', '嘛', '噻'],
+                'phrases': ['啥子', '咋个', '做啥', '咋样', '哈子']
+            },
+            'northeastern': {
+                'words': ['咋', '啥', '整', '整啥', '咋整'],
+                'phrases': ['咋整', '整啥', '干啥', '咋样']
+            }
         }
-        self.models = {}
-        self._load_models()
+        
+        logger.info("方言识别器初始化完成")
     
-    def _load_models(self):
-        """加载方言识别模型"""
-        # 这里应该加载预训练的方言识别模型
-        # 实际实现需要训练或下载相应的模型
-        pass
-    
-    async def detect_dialect(self, audio_data: bytes) -> Optional[str]:
+    async def recognize_dialect(self, text: str) -> Dict[str, Any]:
         """
-        检测音频中的方言
+        识别方言类型
         
         Args:
-            audio_data: 音频数据
+            text: 输入文本
             
         Returns:
-            检测到的方言代码，如果无法识别则返回None
+            方言识别结果
         """
         try:
-            # 1. 音频预处理
-            processed_audio = await self._preprocess_audio(audio_data)
+            if not text.strip():
+                return {'dialect': 'standard', 'confidence': 0.0}
             
-            # 2. 特征提取
-            features = await self._extract_features(processed_audio)
+            # 计算各方言的匹配分数
+            dialect_scores = {}
             
-            # 3. 方言分类
-            dialect_probabilities = await self._classify_dialect(features)
+            for dialect, patterns in self.dialect_patterns.items():
+                score = self._calculate_dialect_score(text, patterns)
+                dialect_scores[dialect] = score
             
-            # 4. 选择最可能的方言
-            best_dialect = max(dialect_probabilities.items(), key=lambda x: x[1])
+            # 找到最高分的方言
+            if dialect_scores:
+                best_dialect = max(dialect_scores, key=dialect_scores.get)
+                best_score = dialect_scores[best_dialect]
+                
+                # 如果分数太低，认为是标准普通话
+                if best_score < 0.1:
+                    best_dialect = 'standard'
+                    best_score = 0.0
+            else:
+                best_dialect = 'standard'
+                best_score = 0.0
             
-            # 如果置信度足够高，返回方言代码
-            if best_dialect[1] > 0.7:
-                return best_dialect[0]
+            result = {
+                'dialect': best_dialect,
+                'confidence': best_score,
+                'all_scores': dialect_scores
+            }
             
-            return None
+            logger.info(f"方言识别完成: {best_dialect} (置信度: {best_score:.2f})")
+            return result
             
         except Exception as e:
-            print(f"方言识别失败: {e}")
-            return None
+            logger.error(f"方言识别失败: {str(e)}")
+            return {'dialect': 'standard', 'confidence': 0.0}
     
-    async def _preprocess_audio(self, audio_data: bytes) -> np.ndarray:
-        """音频预处理"""
-        # 将字节数据转换为numpy数组
-        audio_array = np.frombuffer(audio_data, dtype=np.int16)
-        
-        # 重采样到16kHz
-        audio_resampled = librosa.resample(
-            audio_array.astype(np.float32), 
-            orig_sr=22050, 
-            target_sr=16000
-        )
-        
-        # 归一化
-        audio_normalized = audio_resampled / np.max(np.abs(audio_resampled))
-        
-        return audio_normalized
+    def _calculate_dialect_score(self, text: str, patterns: Dict[str, List[str]]) -> float:
+        """计算方言匹配分数"""
+        try:
+            score = 0.0
+            total_words = len(text)
+            
+            if total_words == 0:
+                return 0.0
+            
+            # 计算特征词匹配
+            word_matches = 0
+            for word in patterns.get('words', []):
+                word_matches += text.count(word)
+            
+            # 计算短语匹配
+            phrase_matches = 0
+            for phrase in patterns.get('phrases', []):
+                phrase_matches += text.count(phrase)
+            
+            # 计算分数（短语权重更高）
+            score = (word_matches * 1.0 + phrase_matches * 3.0) / total_words
+            
+            return min(score, 1.0)
+            
+        except Exception as e:
+            logger.error(f"方言分数计算失败: {str(e)}")
+            return 0.0
     
-    async def _extract_features(self, audio: np.ndarray) -> np.ndarray:
-        """提取音频特征"""
-        # 提取MFCC特征
-        mfccs = librosa.feature.mfcc(y=audio, sr=16000, n_mfcc=13)
-        
-        # 提取频谱特征
-        spectral_centroids = librosa.feature.spectral_centroid(y=audio, sr=16000)
-        spectral_rolloff = librosa.feature.spectral_rolloff(y=audio, sr=16000)
-        
-        # 组合特征
-        features = np.concatenate([
-            mfccs.flatten(),
-            spectral_centroids.flatten(),
-            spectral_rolloff.flatten()
-        ])
-        
-        return features
-    
-    async def _classify_dialect(self, features: np.ndarray) -> Dict[str, float]:
-        """方言分类"""
-        # 这里应该使用训练好的分类模型
-        # 临时实现：返回随机概率
-        probabilities = {
-            "zh": 0.4,
-            "yue": 0.3,
-            "sichuan": 0.3
-        }
-        
-        return probabilities
-    
-    async def convert_to_standard_chinese(self, text: str, dialect: str) -> str:
+    async def adapt_text_for_dialect(self, text: str, dialect: str) -> str:
         """
-        将方言文本转换为标准中文
+        根据方言适配文本
         
         Args:
-            text: 方言文本
+            text: 原始文本
             dialect: 方言类型
             
         Returns:
-            标准中文文本
+            适配后的文本
         """
-        if dialect == "yue":
-            return await self._convert_yue_to_standard(text)
-        elif dialect == "sichuan":
-            return await self._convert_sichuan_to_standard(text)
-        else:
+        try:
+            if dialect == 'standard':
+                return text
+            
+            # 方言到标准普通话的转换
+            dialect_mappings = {
+                'cantonese': {
+                    '嘅': '的',
+                    '咗': '了',
+                    '咁': '这么',
+                    '唔': '不',
+                    '係': '是',
+                    '咩': '什么',
+                    '嘞': '了',
+                    '啲': '一些',
+                    '佢': '他/她'
+                },
+                'sichuanese': {
+                    '啥': '什么',
+                    '咋': '怎么',
+                    '嘛': '吗',
+                    '噻': '吧',
+                    '哈': '啊'
+                }
+            }
+            
+            if dialect in dialect_mappings:
+                mappings = dialect_mappings[dialect]
+                adapted_text = text
+                
+                for dialect_word, standard_word in mappings.items():
+                    adapted_text = adapted_text.replace(dialect_word, standard_word)
+                
+                return adapted_text
+            
+            return text
+            
+        except Exception as e:
+            logger.error(f"方言文本适配失败: {str(e)}")
             return text
     
-    async def _convert_yue_to_standard(self, text: str) -> str:
-        """粤语转标准中文"""
-        # 粤语词汇映射
-        yue_mapping = {
-            "嘅": "的",
-            "咗": "了",
-            "唔": "不",
-            "系": "是",
-            "嘅": "的"
-        }
-        
-        for yue_word, standard_word in yue_mapping.items():
-            text = text.replace(yue_word, standard_word)
-        
-        return text
+    def get_supported_dialects(self) -> List[str]:
+        """获取支持的方言列表"""
+        return list(self.dialect_patterns.keys()) + ['standard']
     
-    async def _convert_sichuan_to_standard(self, text: str) -> str:
-        """川渝方言转标准中文"""
-        # 川渝方言词汇映射
-        sichuan_mapping = {
-            "啥子": "什么",
-            "晓得": "知道",
-            "巴适": "好",
-            "安逸": "舒服"
+    def get_dialect_features(self, dialect: str) -> Dict[str, Any]:
+        """获取方言特征"""
+        if dialect in self.dialect_patterns:
+            return self.dialect_patterns[dialect]
+        elif dialect == 'standard':
+            return {'words': [], 'phrases': []}
+        else:
+            return {}
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """获取统计信息"""
+        return {
+            'supported_dialects': self.get_supported_dialects(),
+            'total_patterns': sum(len(patterns['words']) + len(patterns['phrases']) 
+                                for patterns in self.dialect_patterns.values())
         }
-        
-        for sichuan_word, standard_word in sichuan_mapping.items():
-            text = text.replace(sichuan_word, standard_word)
-        
-        return text

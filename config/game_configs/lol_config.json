@@ -1,0 +1,53 @@
+{
+  "game_name": "英雄联盟",
+  "game_id": "lol",
+  "version": "14.18",
+  "platforms": ["PC"],
+  "languages": ["zh-CN", "en-US"],
+
+  "crawler_config": {
+    "official_sites": [
+      "https://www.leagueoflegends.com",
+      "https://lol.qq.com"
+    ],
+    "community_sites": [
+      "https://www.op.gg",
+      "https://www.u.gg",
+      "https://bbs.nga.cn/thread.php?fid=539"
+    ],
+    "update_frequency": "daily",
+    "max_pages": 800
+  },
+
+  "knowledge_categories": [
+    "英雄技能",
+    "装备与符文",
+    "对线与打野",
+    "地图与目标",
+    "版本改动",
+    "排位与段位",
+    "赛事与观赛",
+    "Bug反馈"
+  ],
+
+  "qa_templates": {
+    "skill_query": "{champion_name} 的 {skill_key} 技能效果是什么？",
+    "rune_query": "{champion_name} 用什么符文好？",
+    "item_query": "对抗 {opponent_champion} 出装推荐？"
+  },
+
+  "accessibility_config": {
+    "elderly_support": true,
+    "visual_impairment_support": true,
+    "hearing_impairment_support": true,
+    "cognitive_friendly_mode": true
+  },
+
+  "health_config": {
+    "max_session_time": 5400,
+    "break_reminder_interval": 1800,
+    "blue_light_filter": true
+  }
+}
+
+

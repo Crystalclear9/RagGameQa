@@ -1,112 +1,269 @@
 # 知识库管理器
 from typing import List, Dict, Any, Optional
-from data.crawler.spider_cluster import SpiderCluster
-from data.processor.quality_assessor import QualityAssessor
+import logging
+from sqlalchemy.orm import Session
+from config.database import get_db, Document, Game
+from core.knowledge_base.embedding_service import EmbeddingService
 from core.knowledge_base.semantic_compression import SemanticCompression
+
+logger = logging.getLogger(__name__)
 
 class KnowledgeBaseManager:
     """知识库管理器"""
     
     def __init__(self, game_id: str):
         self.game_id = game_id
-        self.spider_cluster = SpiderCluster(game_id)
-        self.quality_assessor = QualityAssessor(game_id)
-        self.semantic_compressor = SemanticCompression(game_id)
+        self.embedding_service = EmbeddingService()
+        self.semantic_compression = SemanticCompression()
+        logger.info(f"知识库管理器初始化完成: {game_id}")
     
-    async def update_knowledge_base(self) -> Dict[str, Any]:
+    async def add_documents(self, documents: List[Dict[str, Any]]) -> bool:
         """
-        更新知识库
-        
-        Returns:
-            更新结果统计
-        """
-        # 1. 爬取新数据
-        new_data = await self.spider_cluster.crawl_all_sources()
-        
-        # 2. 质量评估
-        quality_data = await self.quality_assessor.assess(new_data)
-        
-        # 3. 语义压缩
-        compressed_data = await self.semantic_compressor.compress(quality_data)
-        
-        # 4. 更新向量存储
-        await self._update_vector_store(compressed_data)
-        
-        # 5. 更新倒排索引
-        await self._update_inverted_index(compressed_data)
-        
-        return {
-            "total_documents": len(compressed_data),
-            "new_documents": len(new_data),
-            "quality_score": self._calculate_avg_quality(quality_data),
-            "compression_ratio": self._calculate_compression_ratio(new_data, compressed_data)
-        }
-    
-    async def add_document(self, content: str, metadata: Dict[str, Any]) -> str:
-        """
-        添加单个文档
+        添加文档到知识库
         
         Args:
-            content: 文档内容
-            metadata: 文档元数据
+            documents: 文档列表
             
         Returns:
-            文档ID
+            是否添加成功
         """
-        # 1. 质量评估
-        quality_score = await self.quality_assessor.assess_single(content)
-        
-        if quality_score < 0.5:  # 质量阈值
-            raise ValueError("文档质量过低，无法添加到知识库")
-        
-        # 2. 生成文档ID
-        doc_id = self._generate_doc_id(content, metadata)
-        
-        # 3. 添加到存储
-        await self._add_to_storage(doc_id, content, metadata)
-        
-        return doc_id
+        try:
+            db = next(get_db())
+            
+            for doc_data in documents:
+                # 生成嵌入向量
+                embedding = await self.embedding_service.encode_text(doc_data.get('content', ''))
+                
+                # 创建文档记录
+                document = Document(
+                    game_id=self.game_id,
+                    content=doc_data.get('content', ''),
+                    title=doc_data.get('title', ''),
+                    category=doc_data.get('category', ''),
+                    source=doc_data.get('source', ''),
+                    metadata=str(doc_data.get('metadata', {})),
+                    embedding=str(embedding.tolist())
+                )
+                
+                db.add(document)
+            
+            db.commit()
+            logger.info(f"成功添加{len(documents)}个文档到知识库")
+            return True
+            
+        except Exception as e:
+            logger.error(f"添加文档失败: {str(e)}")
+            db.rollback()
+            return False
+        finally:
+            db.close()
     
-    async def search_documents(self, query: str, filters: Optional[Dict] = None) -> List[Dict[str, Any]]:
+    async def search_documents(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
         """
         搜索文档
         
         Args:
-            query: 搜索查询
-            filters: 过滤条件
+            query: 查询文本
+            top_k: 返回数量
             
         Returns:
-            匹配的文档列表
+            文档列表
         """
-        # 这里可以集成向量搜索和关键词搜索
-        pass
+        try:
+            db = next(get_db())
+            
+            # 生成查询向量
+            query_embedding = await self.embedding_service.encode_text(query)
+            
+            # 搜索相似文档
+            documents = db.query(Document).filter(
+                Document.game_id == self.game_id
+            ).all()
+            
+            # 计算相似度并排序
+            results = []
+            for doc in documents:
+                if doc.embedding:
+                    doc_embedding = eval(doc.embedding)  # 解析存储的向量
+                    similarity = self._calculate_similarity(query_embedding, doc_embedding)
+                    
+                    results.append({
+                        'id': doc.id,
+                        'content': doc.content,
+                        'title': doc.title,
+                        'category': doc.category,
+                        'source': doc.source,
+                        'metadata': eval(doc.metadata) if doc.metadata else {},
+                        'similarity': similarity
+                    })
+            
+            # 按相似度排序
+            results.sort(key=lambda x: x['similarity'], reverse=True)
+            
+            return results[:top_k]
+            
+        except Exception as e:
+            logger.error(f"搜索文档失败: {str(e)}")
+            return []
+        finally:
+            db.close()
     
-    async def _update_vector_store(self, documents: List[Dict]):
-        """更新向量存储"""
-        pass
+    async def update_document(self, doc_id: int, updates: Dict[str, Any]) -> bool:
+        """
+        更新文档
+        
+        Args:
+            doc_id: 文档ID
+            updates: 更新内容
+            
+        Returns:
+            是否更新成功
+        """
+        try:
+            db = next(get_db())
+            
+            document = db.query(Document).filter(
+                Document.id == doc_id,
+                Document.game_id == self.game_id
+            ).first()
+            
+            if not document:
+                return False
+            
+            # 更新字段
+            for key, value in updates.items():
+                if hasattr(document, key):
+                    setattr(document, key, value)
+            
+            # 如果内容更新，重新生成嵌入
+            if 'content' in updates:
+                embedding = await self.embedding_service.encode_text(updates['content'])
+                document.embedding = str(embedding.tolist())
+            
+            db.commit()
+            logger.info(f"成功更新文档: {doc_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"更新文档失败: {str(e)}")
+            db.rollback()
+            return False
+        finally:
+            db.close()
     
-    async def _update_inverted_index(self, documents: List[Dict]):
-        """更新倒排索引"""
-        pass
+    async def delete_document(self, doc_id: int) -> bool:
+        """
+        删除文档
+        
+        Args:
+            doc_id: 文档ID
+            
+        Returns:
+            是否删除成功
+        """
+        try:
+            db = next(get_db())
+            
+            document = db.query(Document).filter(
+                Document.id == doc_id,
+                Document.game_id == self.game_id
+            ).first()
+            
+            if not document:
+                return False
+            
+            db.delete(document)
+            db.commit()
+            logger.info(f"成功删除文档: {doc_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"删除文档失败: {str(e)}")
+            db.rollback()
+            return False
+        finally:
+            db.close()
     
-    def _calculate_avg_quality(self, quality_data: List[Dict]) -> float:
-        """计算平均质量分数"""
-        if not quality_data:
+    async def compress_knowledge_base(self) -> Dict[str, Any]:
+        """
+        压缩知识库
+        
+        Returns:
+            压缩结果统计
+        """
+        try:
+            db = next(get_db())
+            
+            # 获取所有文档
+            documents = db.query(Document).filter(
+                Document.game_id == self.game_id
+            ).all()
+            
+            # 执行语义压缩
+            compressed_docs = await self.semantic_compression.compress_documents(documents)
+            
+            # 更新压缩后的文档
+            for i, doc in enumerate(documents):
+                if i < len(compressed_docs):
+                    doc.content = compressed_docs[i]['content']
+                    doc.metadata = str(compressed_docs[i]['metadata'])
+            
+            db.commit()
+            
+            result = {
+                'original_count': len(documents),
+                'compressed_count': len(compressed_docs),
+                'compression_ratio': len(compressed_docs) / len(documents) if documents else 0
+            }
+            
+            logger.info(f"知识库压缩完成: {result}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"知识库压缩失败: {str(e)}")
+            return {}
+        finally:
+            db.close()
+    
+    def _calculate_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """计算余弦相似度"""
+        import numpy as np
+        
+        vec1 = np.array(vec1)
+        vec2 = np.array(vec2)
+        
+        dot_product = np.dot(vec1, vec2)
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
+        
+        if norm1 == 0 or norm2 == 0:
             return 0.0
-        return sum(doc.get('quality_score', 0) for doc in quality_data) / len(quality_data)
+        
+        return dot_product / (norm1 * norm2)
     
-    def _calculate_compression_ratio(self, original: List[Dict], compressed: List[Dict]) -> float:
-        """计算压缩比"""
-        if not original:
-            return 1.0
-        return len(compressed) / len(original)
-    
-    def _generate_doc_id(self, content: str, metadata: Dict) -> str:
-        """生成文档ID"""
-        import hashlib
-        content_hash = hashlib.md5(content.encode()).hexdigest()
-        return f"{self.game_id}_{content_hash[:8]}"
-    
-    async def _add_to_storage(self, doc_id: str, content: str, metadata: Dict):
-        """添加到存储系统"""
-        pass
+    def get_stats(self) -> Dict[str, Any]:
+        """获取知识库统计信息"""
+        try:
+            db = next(get_db())
+            
+            total_docs = db.query(Document).filter(
+                Document.game_id == self.game_id
+            ).count()
+            
+            categories = db.query(Document.category).filter(
+                Document.game_id == self.game_id
+            ).distinct().all()
+            
+            return {
+                'game_id': self.game_id,
+                'total_documents': total_docs,
+                'categories': [cat[0] for cat in categories if cat[0]],
+                'embedding_service': type(self.embedding_service).__name__,
+                'compression_service': type(self.semantic_compression).__name__
+            }
+            
+        except Exception as e:
+            logger.error(f"获取统计信息失败: {str(e)}")
+            return {}
+        finally:
+            db.close()

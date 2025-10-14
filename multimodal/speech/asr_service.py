@@ -1,11 +1,11 @@
 # 语音识别服务
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Optional
+import logging
 import speech_recognition as sr
-import pyttsx3
-import io
-import wave
-from multimodal.speech.dialect_recognizer import DialectRecognizer
-from multimodal.speech.noise_suppression import NoiseSuppression
+from .dialect_recognizer import DialectRecognizer
+from .noise_suppression import NoiseSuppression
+
+logger = logging.getLogger(__name__)
 
 class ASRService:
     """语音识别服务"""
@@ -13,23 +13,17 @@ class ASRService:
     def __init__(self, game_id: str):
         self.game_id = game_id
         self.recognizer = sr.Recognizer()
-        self.dialect_recognizer = DialectRecognizer(game_id)
-        self.noise_suppressor = NoiseSuppression(game_id)
-        self.supported_languages = ["zh-CN", "en-US", "yue-CN", "sichuan-CN"]
+        self.dialect_recognizer = DialectRecognizer()
+        self.noise_suppressor = NoiseSuppression()
+        logger.info(f"ASR服务初始化完成: {game_id}")
     
-    async def recognize_speech(
-        self, 
-        audio_data: bytes, 
-        language: str = "zh-CN",
-        user_context: Optional[Dict] = None
-    ) -> Dict[str, Any]:
+    async def recognize_speech(self, audio_data: bytes, language: str = "zh-CN") -> Dict[str, Any]:
         """
         语音识别
         
         Args:
             audio_data: 音频数据
             language: 语言代码
-            user_context: 用户上下文
             
         Returns:
             识别结果
@@ -38,88 +32,107 @@ class ASRService:
             # 1. 噪声抑制
             cleaned_audio = await self.noise_suppressor.suppress_noise(audio_data)
             
-            # 2. 方言识别（如果需要）
-            if user_context and user_context.get('enable_dialect', False):
-                detected_dialect = await self.dialect_recognizer.detect_dialect(cleaned_audio)
-                if detected_dialect:
-                    language = detected_dialect
+            # 2. 基础语音识别
+            with sr.AudioFile(cleaned_audio) as source:
+                audio = self.recognizer.record(source)
             
-            # 3. 语音识别
-            text = await self._perform_recognition(cleaned_audio, language)
+            # 3. 识别文本
+            text = self.recognizer.recognize_google(audio, language=language)
             
-            # 4. 后处理
-            processed_text = await self._post_process_text(text, user_context)
+            # 4. 方言识别
+            dialect_info = await self.dialect_recognizer.recognize_dialect(text)
             
-            return {
-                "text": processed_text,
-                "language": language,
-                "confidence": 0.9,  # 实际应该从识别结果获取
-                "dialect_detected": user_context.get('enable_dialect', False)
+            result = {
+                'text': text,
+                'confidence': 0.9,  # 模拟置信度
+                'language': language,
+                'dialect': dialect_info.get('dialect', 'standard'),
+                'dialect_confidence': dialect_info.get('confidence', 0.0)
             }
+            
+            logger.info(f"语音识别完成: {text[:50]}...")
+            return result
             
         except Exception as e:
+            logger.error(f"语音识别失败: {str(e)}")
             return {
-                "text": "",
-                "language": language,
-                "confidence": 0.0,
-                "error": str(e)
+                'text': '',
+                'confidence': 0.0,
+                'language': language,
+                'dialect': 'unknown',
+                'dialect_confidence': 0.0,
+                'error': str(e)
             }
     
-    async def _perform_recognition(self, audio_data: bytes, language: str) -> str:
-        """执行语音识别"""
-        # 将字节数据转换为AudioData对象
-        audio_file = io.BytesIO(audio_data)
+    async def recognize_with_context(self, audio_data: bytes, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        带上下文的语音识别
         
-        with sr.AudioFile(audio_file) as source:
-            audio = self.recognizer.record(source)
-        
-        # 使用Google语音识别
-        try:
-            text = self.recognizer.recognize_google(audio, language=language)
-            return text
-        except sr.UnknownValueError:
-            return ""
-        except sr.RequestError as e:
-            raise Exception(f"语音识别服务错误: {e}")
-    
-    async def _post_process_text(self, text: str, user_context: Optional[Dict]) -> str:
-        """文本后处理"""
-        if not text:
-            return text
-        
-        # 基础清理
-        text = text.strip()
-        
-        # 根据用户类型特殊处理
-        if user_context:
-            user_type = user_context.get('user_type', 'normal')
+        Args:
+            audio_data: 音频数据
+            context: 上下文信息
             
+        Returns:
+            识别结果
+        """
+        try:
+            # 根据上下文调整识别参数
+            language = context.get('language', 'zh-CN')
+            user_type = context.get('user_type', 'normal')
+            
+            # 基础识别
+            result = await self.recognize_speech(audio_data, language)
+            
+            # 根据用户类型调整结果
             if user_type == 'elderly':
-                # 老年用户：简化语言
-                text = self._simplify_for_elderly(text)
+                result = self._adapt_for_elderly(result)
             elif user_type == 'hearing_impairment':
-                # 听障用户：添加视觉提示
-                text = self._add_visual_cues(text)
-        
-        return text
+                result = self._adapt_for_hearing_impairment(result)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"上下文语音识别失败: {str(e)}")
+            return await self.recognize_speech(audio_data)
     
-    def _simplify_for_elderly(self, text: str) -> str:
-        """为老年用户简化语言"""
+    def _adapt_for_elderly(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """为老年用户适配识别结果"""
+        # 简化语言，提高识别准确度
+        text = result.get('text', '')
+        
         # 替换复杂词汇
         replacements = {
-            '技能': '能力',
+            '技能': '功能',
             '装备': '道具',
-            '副本': '关卡'
+            '副本': '关卡',
+            '任务': '工作'
         }
         
         for old, new in replacements.items():
             text = text.replace(old, new)
         
-        return text
+        result['text'] = text
+        result['adapted_for_elderly'] = True
+        
+        return result
     
-    def _add_visual_cues(self, text: str) -> str:
-        """为听障用户添加视觉提示"""
-        # 在关键信息前添加视觉标记
-        text = text.replace('注意', '[视觉] 注意')
-        text = text.replace('重要', '[视觉] 重要')
-        return text
+    def _adapt_for_hearing_impairment(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """为听障用户适配识别结果"""
+        # 添加视觉提示
+        result['visual_hints'] = True
+        result['enhanced_text'] = f"[语音识别] {result.get('text', '')}"
+        
+        return result
+    
+    def get_supported_languages(self) -> list:
+        """获取支持的语言列表"""
+        return ['zh-CN', 'en-US', 'yue', 'sichuan']
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """获取服务统计信息"""
+        return {
+            'game_id': self.game_id,
+            'supported_languages': self.get_supported_languages(),
+            'dialect_support': True,
+            'noise_suppression': True
+        }

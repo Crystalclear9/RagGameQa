@@ -1,0 +1,51 @@
+{
+  "game_name": "Minecraft",
+  "game_id": "minecraft",
+  "version": "1.20.2",
+  "platforms": ["PC", "Mobile", "Console"],
+  "languages": ["zh-CN", "en-US"],
+
+  "crawler_config": {
+    "official_sites": [
+      "https://www.minecraft.net"
+    ],
+    "community_sites": [
+      "https://minecraft.fandom.com/",
+      "https://www.reddit.com/r/Minecraft/"
+    ],
+    "update_frequency": "daily",
+    "max_pages": 600
+  },
+
+  "knowledge_categories": [
+    "生存与建造",
+    "红石机制",
+    "生物与Boss",
+    "附魔与药水",
+    "冒险与探索",
+    "模组与数据包",
+    "服务器与联机",
+    "Bug反馈"
+  ],
+
+  "qa_templates": {
+    "redstone_query": "如何制作 {device} 的红石电路？",
+    "enchant_query": "{item} 推荐附魔有哪些？",
+    "boss_query": "如何击败 {boss_name}？"
+  },
+
+  "accessibility_config": {
+    "elderly_support": true,
+    "visual_impairment_support": true,
+    "hearing_impairment_support": true,
+    "cognitive_friendly_mode": true
+  },
+
+  "health_config": {
+    "max_session_time": 7200,
+    "break_reminder_interval": 1800,
+    "blue_light_filter": true
+  }
+}
+
+

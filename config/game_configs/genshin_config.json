@@ -1,0 +1,52 @@
+{
+  "game_name": "原神",
+  "game_id": "genshin",
+  "version": "4.1",
+  "platforms": ["PC", "PS5", "Mobile"],
+  "languages": ["zh-CN", "en-US", "ja-JP"],
+
+  "crawler_config": {
+    "official_sites": [
+      "https://genshin.hoyoverse.com",
+      "https://www.hoyolab.com"
+    ],
+    "community_sites": [
+      "https://bbs.mihoyo.com/ys",
+      "https://nga.178.com/thread.php?fid=555"
+    ],
+    "update_frequency": "daily",
+    "max_pages": 1000
+  },
+
+  "knowledge_categories": [
+    "角色与天赋",
+    "圣遗物",
+    "武器",
+    "元素反应",
+    "世界任务",
+    "秘境与BOSS",
+    "探索与解谜",
+    "Bug反馈"
+  ],
+
+  "qa_templates": {
+    "artifact_query": "{character} 推荐什么圣遗物和词条？",
+    "weapon_query": "{character} 的武器选择推荐？",
+    "boss_query": "如何击败 {boss_name}？"
+  },
+
+  "accessibility_config": {
+    "elderly_support": true,
+    "visual_impairment_support": true,
+    "hearing_impairment_support": true,
+    "cognitive_friendly_mode": true
+  },
+
+  "health_config": {
+    "max_session_time": 7200,
+    "break_reminder_interval": 1800,
+    "blue_light_filter": true
+  }
+}
+
+
