@@ -1,7 +1,15 @@
 # 语音识别服务
 from typing import Dict, Any, Optional
 import logging
-import speech_recognition as sr
+
+# 可选依赖
+try:
+    import speech_recognition as sr
+    HAS_SPEECH_RECOGNITION = True
+except ImportError:
+    HAS_SPEECH_RECOGNITION = False
+    sr = None
+
 from .dialect_recognizer import DialectRecognizer
 from .noise_suppression import NoiseSuppression
 

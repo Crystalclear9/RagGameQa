@@ -38,7 +38,7 @@ class Document(Base):
     title = Column(String(200))
     category = Column(String(50))
     source = Column(String(200))
-    metadata = Column(Text)  # JSON字符串
+    doc_metadata = Column(Text)  # JSON字符串 (renamed from metadata to avoid SQLAlchemy 2.0 reserved word)
     embedding = Column(Text)  # 向量嵌入
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

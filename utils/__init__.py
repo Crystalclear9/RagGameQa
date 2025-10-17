@@ -6,29 +6,25 @@
 支持系统运行所需的各种辅助功能。
 """
 
-from .text_utils import TextProcessor, ChineseSegmenter
-from .file_utils import FileManager, ConfigLoader
-from .logging_config import setup_logging, get_logger
-from .constants import *
+# 可选导入，避免导入错误
+try:
+    from .text_utils import TextUtils
+except ImportError:
+    TextUtils = None
 
-__all__ = [
-    # 文本工具
-    "TextProcessor",
-    "ChineseSegmenter",
-    
-    # 文件工具
-    "FileManager",
-    "ConfigLoader",
-    
-    # 日志配置
-    "setup_logging",
-    "get_logger",
-    
-    # 常量
-    "API_ENDPOINTS",
-    "MODEL_CONFIGS",
-    "ERROR_CODES",
-    "SUPPORTED_LANGUAGES",
-    "USER_TYPES",
-    "ACCESSIBILITY_FEATURES"
-]
+try:
+    from .file_utils import *
+except ImportError:
+    pass
+
+try:
+    from .logging_config import *
+except ImportError:
+    pass
+
+try:
+    from .constants import *
+except ImportError:
+    pass
+
+__all__ = ["TextUtils"]

@@ -1,14 +1,18 @@
 # 全局配置设置
 import os
 from typing import Dict, Any, List
+from dotenv import load_dotenv
+
+# 加载.env文件
+load_dotenv()
 
 
 class Settings:
     """全局配置类"""
 
     # 应用基础配置
-    APP_NAME: str = "RAG Game QA System"
-    APP_VERSION: str = "1.0.0"
+    APP_NAME: str = os.getenv("APP_NAME", "RAG Game QA System")
+    APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
     DEBUG: bool = os.getenv("DEBUG", "False").lower() == "true"
     ENV: str = os.getenv("ENV", "dev")  # dev | staging | prod
 
@@ -20,30 +24,34 @@ class Settings:
     )
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info")
 
-    # 模型配置
-    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "deepseek-r1")
+    # AI Provider配置
+    AI_PROVIDER: str = os.getenv("AI_PROVIDER", "claude")  # claude | openai
+    
+    # Claude配置
+    CLAUDE_API_KEY: str = os.getenv("CLAUDE_API_KEY", "")
+    CLAUDE_API_BASE: str = os.getenv("CLAUDE_API_BASE", "https://api.anthropic.com")
+    CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-20241022")
+    CLAUDE_MAX_TOKENS: int = int(os.getenv("CLAUDE_MAX_TOKENS", "2000"))
+    CLAUDE_TEMPERATURE: float = float(os.getenv("CLAUDE_TEMPERATURE", "0.7"))
+    
+    # 模型配置（保持向后兼容）
+    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "claude-3-5-sonnet-20241022")
     EMBEDDING_MODEL: str = os.getenv(
         "EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
     )
-    MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "100000"))
+    MAX_TOKENS: int = int(os.getenv("MAX_TOKENS", "2000"))
 
     # 检索配置
     TOP_K_RESULTS: int = int(os.getenv("TOP_K_RESULTS", "5"))
     SIMILARITY_THRESHOLD: float = float(os.getenv("SIMILARITY_THRESHOLD", "0.7"))
 
-    # 多模态配置
-    SUPPORTED_LANGUAGES: list = ["zh", "en", "yue", "sichuan"]
-    MAX_AUDIO_DURATION: int = int(os.getenv("MAX_AUDIO_DURATION", "30"))  # 秒
-
-    # 无障碍配置
-    PATIENCE_THRESHOLD: int = int(os.getenv("PATIENCE_THRESHOLD", "3"))
-    SIMILARITY_THRESHOLD_ELDERLY: float = float(
-        os.getenv("SIMILARITY_THRESHOLD_ELDERLY", "0.85")
-    )
-
-    # 健康管理配置
-    MAX_GAME_TIME: int = int(os.getenv("MAX_GAME_TIME", "3600"))  # 1小时
-    BLUE_LIGHT_REDUCTION: float = float(os.getenv("BLUE_LIGHT_REDUCTION", "0.3"))
+    # 缓存配置
+    CACHE_ENABLED: bool = os.getenv("CACHE_ENABLED", "False").lower() == "true"
+    CACHE_TTL: int = int(os.getenv("CACHE_TTL", "3600"))
+    
+    # 性能配置
+    TIMEOUT_SECONDS: int = int(os.getenv("TIMEOUT_SECONDS", "30"))
+    MAX_RETRIES: int = int(os.getenv("MAX_RETRIES", "3"))
 
     # 数据库与缓存
     DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "5"))

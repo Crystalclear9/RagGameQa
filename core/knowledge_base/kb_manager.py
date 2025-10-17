@@ -41,7 +41,7 @@ class KnowledgeBaseManager:
                     title=doc_data.get('title', ''),
                     category=doc_data.get('category', ''),
                     source=doc_data.get('source', ''),
-                    metadata=str(doc_data.get('metadata', {})),
+                    doc_metadata=str(doc_data.get('metadata', {})),
                     embedding=str(embedding.tolist())
                 )
                 
@@ -93,7 +93,7 @@ class KnowledgeBaseManager:
                         'title': doc.title,
                         'category': doc.category,
                         'source': doc.source,
-                        'metadata': eval(doc.metadata) if doc.metadata else {},
+                        'metadata': eval(doc.doc_metadata) if doc.doc_metadata else {},
                         'similarity': similarity
                     })
             
@@ -206,7 +206,7 @@ class KnowledgeBaseManager:
             for i, doc in enumerate(documents):
                 if i < len(compressed_docs):
                     doc.content = compressed_docs[i]['content']
-                    doc.metadata = str(compressed_docs[i]['metadata'])
+                    doc.doc_metadata = str(compressed_docs[i]['metadata'])
             
             db.commit()
             

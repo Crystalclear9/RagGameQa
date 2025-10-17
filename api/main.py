@@ -1,11 +1,33 @@
 # 主API入口
+import sys
+from pathlib import Path
+
+# 添加项目根目录到Python路径
+root_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(root_dir))
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
 import logging
-from api.routes import qa_routes, multimodal_routes, analytics_routes, health_routes
+from api.routes import qa_routes, analytics_routes
 from config.settings import settings
+
+# 可选导入（如果模块不存在也不会报错）
+try:
+    from api.routes import multimodal_routes
+    HAS_MULTIMODAL = True
+except ImportError:
+    HAS_MULTIMODAL = False
+    multimodal_routes = None
+
+try:
+    from api.routes import health_routes
+    HAS_HEALTH = True
+except ImportError:
+    HAS_HEALTH = False
+    health_routes = None
 
 # 配置日志
 logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
@@ -53,11 +75,18 @@ async def global_exception_handler(request: Request, exc: Exception):
         },
     )
 
-# 注册路由
+# 注册核心路由
 app.include_router(qa_routes.router, prefix="/api/v1/qa", tags=["问答"])
-app.include_router(multimodal_routes.router, prefix="/api/v1/multimodal", tags=["多模态"])
 app.include_router(analytics_routes.router, prefix="/api/v1/analytics", tags=["分析"])
-app.include_router(health_routes.router, prefix="/api/v1/health", tags=["健康"])
+
+# 注册可选路由
+if HAS_MULTIMODAL and multimodal_routes:
+    app.include_router(multimodal_routes.router, prefix="/api/v1/multimodal", tags=["多模态"])
+    logger.info("已加载多模态路由")
+
+if HAS_HEALTH and health_routes:
+    app.include_router(health_routes.router, prefix="/api/v1/health", tags=["健康"])
+    logger.info("已加载健康管理路由")
 
 @app.get("/")
 async def root():
@@ -67,6 +96,21 @@ async def root():
         "status": "running",
         "docs": "/docs",
         "redoc": "/redoc",
+        "features": {
+            "qa": True,
+            "analytics": True,
+            "multimodal": HAS_MULTIMODAL,
+            "health": HAS_HEALTH
+        }
+    }
+
+@app.get("/health")
+async def health_check():
+    """基础健康检查"""
+    return {
+        "status": "ok",
+        "version": settings.APP_VERSION,
+        "timestamp": time.time()
     }
 
 if __name__ == "__main__":

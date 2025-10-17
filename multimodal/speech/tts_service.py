@@ -1,8 +1,15 @@
 # 语音合成服务
 from typing import Dict, Any, Optional
 import logging
-import pyttsx3
 import asyncio
+
+# 可选依赖
+try:
+    import pyttsx3
+    HAS_PYTTSX3 = True
+except ImportError:
+    HAS_PYTTSX3 = False
+    pyttsx3 = None
 
 logger = logging.getLogger(__name__)
 
