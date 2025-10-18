@@ -54,4 +54,8 @@ async def ask_question(request: QuestionRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_detail = f"问答处理失败: {str(e)}"
+        print(f"错误详情: {error_detail}")
+        print(f"错误堆栈: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=error_detail)

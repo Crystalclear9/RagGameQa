@@ -2,6 +2,7 @@
 from typing import List, Dict, Any, Optional
 import time
 import logging
+import os
 from core.retriever.hybrid_retriever import HybridRetriever
 from core.generator.llm_generator import LLMGenerator
 from core.knowledge_base.kb_manager import KnowledgeBaseManager
@@ -15,9 +16,24 @@ class RAGEngine:
 
     def __init__(self, game_id: str):
         self.game_id = game_id
-        self.retriever = HybridRetriever(game_id)
-        self.generator = LLMGenerator(game_id)
-        self.knowledge_base = KnowledgeBaseManager(game_id)
+        
+        # 检查是否使用内存模式
+        data_file = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'sample_data.json')
+        use_memory_mode = os.path.exists(data_file)
+        
+        if use_memory_mode:
+            logger.info(f"使用内存模式 for {game_id}")
+            from core.retriever.simple_memory_retriever import SimpleMemoryRetriever
+            from core.generator.memory_llm_generator import MemoryLLMGenerator
+            
+            self.retriever = SimpleMemoryRetriever(game_id)
+            self.generator = MemoryLLMGenerator(game_id)
+            self.knowledge_base = None  # 内存模式不需要知识库管理器
+        else:
+            logger.info(f"使用数据库模式 for {game_id}")
+            self.retriever = HybridRetriever(game_id)
+            self.generator = LLMGenerator(game_id)
+            self.knowledge_base = KnowledgeBaseManager(game_id)
 
     async def query(self, question: str, user_context: Optional[Dict] = None) -> Dict[str, Any]:
         """
@@ -47,15 +63,16 @@ class RAGEngine:
         confidence = self._calculate_confidence(answer, retrieved_docs)
         sources = self._extract_sources(retrieved_docs)
 
-        # 4. 记录查询日志
-        await self._log_query(
-            question=question,
-            answer=answer,
-            docs=retrieved_docs,
-            confidence=confidence,
-            processing_time=processing_time,
-            user_context=user_context or {},
-        )
+        # 4. 记录查询日志（仅数据库模式）
+        if self.knowledge_base:
+            await self._log_query(
+                question=question,
+                answer=answer,
+                docs=retrieved_docs,
+                confidence=confidence,
+                processing_time=processing_time,
+                user_context=user_context or {},
+            )
 
         return {
             "answer": answer,
@@ -77,7 +94,10 @@ class RAGEngine:
         processing_time: float = 0.0,
         user_context: Optional[Dict] = None,
     ):
-        """记录查询日志到数据库"""
+        """记录查询日志到数据库（仅数据库模式）"""
+        if not self.knowledge_base:
+            return  # 内存模式不记录日志
+            
         db = None
         try:
             db = SessionLocal()
