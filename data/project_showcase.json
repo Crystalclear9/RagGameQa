@@ -1,137 +1,222 @@
 {
-  "project_info": {
-    "project_number": "S202510487571",
-    "project_name": "基于检索增强生成的游戏类问答智能体开发与实现",
-    "discipline": "计算机科学与技术",
-    "college": "华中科技大学计算机科学与技术学院",
-    "leader": "范佳润",
-    "advisor": "金燕",
-    "duration": {
-      "start": "2025-03-10",
-      "end": "2026-03-10",
-      "midterm_fill_date": "2025-10-21"
-    },
-    "phone": "18257503183"
-  },
-  "team": [
-    {
-      "name": "范佳润",
-      "student_id": "U202315407",
-      "role": "负责人",
-      "focus": "项目统筹、系统设计"
-    },
-    {
-      "name": "田赞尧",
-      "student_id": "U202315420",
-      "role": "测试优化",
-      "focus": "测试、性能优化"
-    },
-    {
-      "name": "俞乐遂",
-      "student_id": "U202315428",
-      "role": "需求分析",
-      "focus": "需求分析、文档整理"
-    },
-    {
-      "name": "张宇杰",
-      "student_id": "U202315431",
-      "role": "代码实现",
-      "focus": "后端开发、接口实现"
-    }
-  ],
-  "research_progress": [
-    "已构建基于 RAG 的通用游戏问答系统，采用倒排索引与向量嵌入结合的混合检索策略。",
-    "完成 jieba + BM25 文本检索、Sentence-Transformers 384 维向量匹配与 BERT 重排序链路设计。",
-    "基于 FastAPI 构建 RESTful API，已覆盖问答、分析、多模态与健康扩展能力。",
-    "知识库支持游戏配置与示例文档管理，并为后续动态采集与更新保留接口。",
-    "整体采用模块化架构，支持数据库模式与轻量内存模式，便于部署与演示。"
-  ],
-  "phased_results": [
-    "完成核心 RAG 问答主链，支持多游戏查询与来源返回。",
-    "实现反馈分析、趋势统计、优先级报告等闭环分析接口。",
-    "补齐多模态能力接口，包括语音识别、语音合成、图像描述、触觉反馈协调。",
-    "接入面向老年玩家的分步引导，支持问答时附带辅助说明。",
-    "新增可视化 GUI 展示台，面向答辩、老师评阅和用户体验演示。"
-  ],
-  "current_issues": [
-    "正式商用 LLM 服务尚未接入，当前以轻量模式和回退逻辑保障演示可用。",
-    "高精度向量模型、真实语音识别与图像理解依赖较重，本地环境中默认降级运行。",
-    "知识爬虫与分钟级自动更新仍需进一步接入真实数据源和定时调度。",
-    "当前示例知识库规模较小，更适合演示架构与流程，后续需继续扩展。"
-  ],
-  "funding": {
-    "received": 5000,
-    "used": 1377,
-    "remaining": 3623,
-    "details": [
-      {
-        "item": "Cursor 集成大模型 API 调用",
-        "amount": 1377
-      }
+  "system_info": {
+    "project_name": "基于检索增强生成的游戏类问答智能体",
+    "summary": "这是一个面向多游戏知识库的 RAG 问答系统，提供混合检索、答案生成、反馈闭环、多模态扩展和无障碍辅助能力。",
+    "positioning": "项目演示与接口验证页面",
+    "supported_games": [
+      "魔兽世界",
+      "英雄联盟",
+      "原神",
+      "我的世界",
+      "无畏契约",
+      "Apex 英雄"
     ]
   },
-  "next_plan": [
-    "接入正式可用的大模型服务，提升答案质量与复杂问题处理能力。",
-    "进一步优化模型缓存和响应延迟，缩短首次加载耗时。",
-    "完善知识库扩展方案，逐步接入更多游戏与数据源。",
-    "继续增强多模态能力，将现有接口替换为真实模型或在线服务。",
-    "补充测试覆盖、部署脚本与论文材料，形成更完整的结题成果。"
-  ],
-  "innovations": [
-    "通用化游戏问答架构：避免一游戏一模型的重复开发。",
-    "闭环反馈工作流：从问答到反馈、分析、优先级报告形成数据回路。",
-    "老年友好型辅助设计：语义耐心值思路与分步引导适配。",
-    "多模态交互入口：为语音、视觉与触觉协同预留统一接口。",
-    "轻量与完整部署兼容：支持演示环境快速落地，也支持后续扩展。"
-  ],
-  "proposal_highlights": [
+  "overview_cards": [
     {
-      "title": "研究目标",
+      "label": "核心能力",
+      "value": "混合检索 + RAG 生成",
+      "description": "BM25、向量检索、重排序、问答生成整合为统一链路"
+    },
+    {
+      "label": "服务形态",
+      "value": "FastAPI + Web GUI",
+      "description": "支持 REST API、Swagger 文档和浏览器演示界面"
+    },
+    {
+      "label": "部署模式",
+      "value": "SQLite / PostgreSQL / 内存",
+      "description": "支持本地轻量运行和数据库持久化两种场景"
+    },
+    {
+      "label": "模型接入",
+      "value": "Mock / Gemini / Claude",
+      "description": "支持本地演示模式和外部大模型调用"
+    }
+  ],
+  "architecture_sections": [
+    {
+      "title": "检索链路",
       "items": [
-        "构建可快速迁移到多款游戏知识库的通用 RAG 问答框架。",
-        "探索多模态无障碍交互，让老年与视听障碍玩家也能获得辅助支持。",
-        "建立玩家问题到开发优化的反馈闭环，推动数据驱动迭代。"
+        "jieba 分词 + BM25 关键词检索",
+        "Sentence-Transformers 向量语义检索",
+        "BERT 重排序增强相关性",
+        "统一来源抽取与置信度估计"
       ]
     },
     {
-      "title": "研究内容",
+      "title": "生成链路",
       "items": [
-        "游戏知识获取与知识库组织。",
-        "混合检索、重排序与生成链路实现。",
-        "多模态、无障碍、反馈分析与健康关怀模块扩展。"
+        "检索结果上下文拼接",
+        "领域适配器补充游戏语境",
+        "Mock / Gemini / Claude 三种生成模式",
+        "统一回答格式化和辅助说明输出"
       ]
     },
     {
-      "title": "预期成果",
+      "title": "扩展模块",
       "items": [
-        "跨游戏智能问答系统原型。",
-        "支持 API 与 GUI 的可展示系统。",
-        "可用于答辩、演示与后续扩展的工程化基础。"
+        "反馈闭环与趋势统计",
+        "多模态语音 / 图像 / 触觉接口",
+        "老年友好分步引导",
+        "健康提醒与干预接口"
       ]
     }
   ],
-  "timeline": [
+  "implemented_modules": [
+    "RAG 问答主链路",
+    "混合检索与来源返回",
+    "问答日志与反馈统计",
+    "无障碍分步引导",
+    "多模态接口编排",
+    "Web GUI 与 Swagger 文档",
+    "Gemini / Claude 生成接入"
+  ],
+  "module_audit": [
     {
-      "date": "2025-03-03",
-      "title": "项目申报",
-      "description": "完成项目申报书，明确研究目标、路线与创新点。 "
+      "module": "通用 RAG 问答框架",
+      "status": "implemented",
+      "description": "问答、检索、生成、来源返回已打通，可用于实际接口调用和页面演示。",
+      "evidence": [
+        "/api/v1/qa/ask",
+        "core/rag_engine.py",
+        "core/retriever/hybrid_retriever.py"
+      ]
     },
     {
-      "date": "2025-03-10",
-      "title": "项目启动",
-      "description": "进入项目实施阶段。"
+      "module": "混合检索策略",
+      "status": "implemented",
+      "description": "倒排检索、向量检索和重排序模块均存在并接入主流程。",
+      "evidence": [
+        "core/retriever/inverted_index.py",
+        "core/retriever/vector_retriever.py",
+        "core/retriever/reranker.py"
+      ]
     },
     {
-      "date": "2025-10-21",
-      "title": "中期检查",
-      "description": "提交项目中期检查表，总结阶段成果与待解决问题。"
+      "module": "多游戏知识库适配",
+      "status": "implemented",
+      "description": "系统支持多游戏 ID、样例文档和知识覆盖统计。",
+      "evidence": [
+        "data/sample_data.json",
+        "/api/v1/project/overview"
+      ]
     },
     {
-      "date": "2026-03-10",
-      "title": "计划结题",
-      "description": "完成系统优化、成果整理与最终验收。"
+      "module": "反馈闭环与优先级分析",
+      "status": "implemented",
+      "description": "反馈写入、趋势统计、热力图和优先级报告均可调用，但分类仍以规则增强为主。",
+      "evidence": [
+        "/api/v1/analytics/feedback",
+        "/api/v1/analytics/query-stats",
+        "/api/v1/analytics/priority-report"
+      ]
+    },
+    {
+      "module": "语义耐心值模型",
+      "status": "partial",
+      "description": "已有耐心值模型代码，但尚未完整串入问答主流程自动触发策略。",
+      "evidence": [
+        "accessibility/elderly_support/patience_model.py"
+      ]
+    },
+    {
+      "module": "祖孙协作模式",
+      "status": "partial",
+      "description": "已实现拼音图文指南生成逻辑，但当前页面和主 API 还没有统一对外入口。",
+      "evidence": [
+        "accessibility/elderly_support/family_collaboration.py"
+      ]
+    },
+    {
+      "module": "方言识别",
+      "status": "partial",
+      "description": "当前仅有占位识别器，未达到文档中所述的真实方言识别能力。",
+      "evidence": [
+        "multimodal/speech/dialect_recognizer.py"
+      ]
+    },
+    {
+      "module": "多模态交互",
+      "status": "partial",
+      "description": "语音、图像、触觉 API 已存在，但部分能力仍为轻量实现或占位返回。",
+      "evidence": [
+        "/api/v1/multimodal/capabilities",
+        "/api/v1/multimodal/process"
+      ]
+    },
+    {
+      "module": "动态爬虫与分钟级知识更新",
+      "status": "missing",
+      "description": "当前仓库没有真正运行中的分布式爬虫集群和定时更新任务。",
+      "evidence": []
+    },
+    {
+      "module": "Jira 闭环集成",
+      "status": "missing",
+      "description": "文档中提到的开发者工单联动尚未实现。",
+      "evidence": []
+    },
+    {
+      "module": "NVIDIA NIM 推理优化",
+      "status": "missing",
+      "description": "文档中的 NIM 推理优化尚未接入代码主流程。",
+      "evidence": []
     }
   ],
+  "api_reference": [
+    {
+      "name": "问答接口",
+      "method": "POST",
+      "path": "/api/v1/qa/ask",
+      "description": "RAG 主接口，输入问题和 game_id，返回答案、来源、置信度和元数据。"
+    },
+    {
+      "name": "辅助分步引导",
+      "method": "POST",
+      "path": "/api/v1/qa/assistive-guide",
+      "description": "单独生成面向老年或无障碍场景的分步指导。"
+    },
+    {
+      "name": "反馈写入",
+      "method": "POST",
+      "path": "/api/v1/analytics/feedback",
+      "description": "记录用户评分和评论，形成反馈闭环。"
+    },
+    {
+      "name": "查询统计",
+      "method": "GET",
+      "path": "/api/v1/analytics/query-stats",
+      "description": "返回查询量、置信度、耗时和高频问题等统计。"
+    },
+    {
+      "name": "多模态处理",
+      "method": "POST",
+      "path": "/api/v1/multimodal/process",
+      "description": "统一接入语音、图像、触觉相关输入。"
+    },
+    {
+      "name": "项目模块核查",
+      "method": "GET",
+      "path": "/api/v1/project/module-audit",
+      "description": "返回当前项目对照设计文档的实现状态。"
+    }
+  ],
+  "python_config": {
+    "config_file": "config/local_provider_config.py",
+    "instructions": [
+      "直接在 Python 文件中填写 API Key，不需要通过网页输入。",
+      "修改后重启 `python run_server.py` 即可生效。",
+      "这个文件已加入 `.gitignore`，不会被提交到远程仓库。"
+    ],
+    "sample_lines": [
+      "LOCAL_PROVIDER_CONFIG = {",
+      "    \"AI_PROVIDER\": \"gemini\",",
+      "    \"GEMINI_API_KEY\": \"在这里填写你的 key\",",
+      "    \"GEMINI_MODEL\": \"gemini-2.5-flash\",",
+      "}"
+    ]
+  },
   "demo_questions": [
     {
       "game_id": "wow",

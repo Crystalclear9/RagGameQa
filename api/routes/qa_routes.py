@@ -1,3 +1,4 @@
+import importlib
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -12,6 +13,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _optional_class(module_name: str, class_name: str):
+    try:
+        module = importlib.import_module(module_name)
+        return getattr(module, class_name)
+    except Exception:
+        return None
+
+
 class QuestionRequest(BaseModel):
     question: str = Field(..., description="用户问题")
     game_id: str = Field(..., description="游戏 ID")
@@ -19,6 +28,7 @@ class QuestionRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20, description="返回来源数量")
     include_sources: bool = Field(default=True, description="是否返回来源")
     include_assistive_guide: bool = Field(default=False, description="是否返回分步引导")
+    include_family_guide: bool = Field(default=False, description="是否返回祖孙协作图文指南")
 
 
 class SourceItem(BaseModel):
@@ -65,6 +75,24 @@ async def ask_question(request: QuestionRequest):
 
         user_context = request.user_context or {}
         user_type = str(user_context.get("user_type", "normal"))
+
+        if user_type == "elderly":
+            patience_model_cls = _optional_class(
+                "accessibility.elderly_support.patience_model",
+                "PatienceModel",
+            )
+            if patience_model_cls is not None:
+                patience_model = patience_model_cls(request.game_id)
+                metadata["patience_analysis"] = await patience_model.check_patience(
+                    request.question,
+                    str(user_context.get("user_id", "anonymous")),
+                )
+            else:
+                metadata["patience_analysis"] = {
+                    "available": False,
+                    "message": "耐心值模型依赖未安装，已自动跳过。",
+                }
+
         if request.include_assistive_guide or user_type != "normal":
             guide = StepGuide(request.game_id)
             metadata["assistive_guide"] = await guide.generate_guide(
@@ -72,6 +100,24 @@ async def ask_question(request: QuestionRequest):
                 user_context,
                 str(user_context.get("difficulty_level", "beginner")),
             )
+
+        if request.include_family_guide or bool(user_context.get("family_mode")):
+            family_cls = _optional_class(
+                "accessibility.elderly_support.family_collaboration",
+                "FamilyCollaboration",
+            )
+            if family_cls is not None:
+                family = family_cls(request.game_id)
+                metadata["family_guide"] = await family.generate_family_guide(
+                    request.question,
+                    result.get("answer", ""),
+                    user_context,
+                )
+            else:
+                metadata["family_guide"] = {
+                    "available": False,
+                    "message": "祖孙协作依赖未安装，已自动跳过。",
+                }
 
         sources: List[SourceItem] = []
         if request.include_sources:

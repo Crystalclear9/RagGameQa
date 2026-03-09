@@ -604,6 +604,80 @@ textarea:focus {
   color: var(--accent);
 }
 
+.api-reference,
+.audit-grid,
+.config-guide {
+  display: grid;
+  gap: 12px;
+}
+
+.api-card,
+.audit-card,
+.config-path-card {
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: var(--panel-2);
+}
+
+.api-card strong,
+.audit-card h3,
+.config-path-card strong {
+  display: block;
+  margin-top: 8px;
+}
+
+.api-card p,
+.api-card small,
+.audit-card p {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.api-method {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(86, 195, 171, 0.14);
+  color: #d4ffdf;
+  font-size: 12px;
+}
+
+.code-block {
+  margin: 0;
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(6, 16, 20, 0.82);
+  color: #fff0d2;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+
+.audit-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.compact-header {
+  margin-bottom: 8px;
+}
+
+.status-implemented {
+  border-color: rgba(141, 224, 177, 0.28);
+}
+
+.status-partial {
+  border-color: rgba(241, 166, 91, 0.28);
+}
+
+.status-missing {
+  border-color: rgba(255, 138, 114, 0.28);
+}
+
 a {
   color: #ffe0b8;
 }
@@ -616,6 +690,10 @@ a {
 
   .content-grid {
     grid-template-columns: 1fr;
+  }
+
+  .audit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -651,6 +729,7 @@ a {
   .summary-grid,
   .narrative-grid,
   .deep-grid,
+  .audit-grid,
   .stats-grid,
   .member-grid,
   .coverage-grid,

@@ -1,94 +1,90 @@
-# GUI 使用与安全说明
+# 使用说明
 
-## 1. 启动项目
+## 1. API Key 现在填在哪里
+
+现在不再要求在网页里输入 API Key。
+
+请直接编辑：
+
+`config/local_provider_config.py`
+
+这个文件已经被 `.gitignore` 忽略，不会被提交到仓库。
+
+如果你想先看示例，可以参考：
+
+`config/local_provider_config.example.py`
+
+## 2. Gemini 配置示例
+
+```python
+LOCAL_PROVIDER_CONFIG = {
+    "AI_PROVIDER": "gemini",
+    "GEMINI_API_KEY": "你的 Gemini API Key",
+    "GEMINI_MODEL": "gemini-2.5-flash",
+    "GEMINI_API_BASE": "https://generativelanguage.googleapis.com/v1beta",
+}
+```
+
+## 3. Claude 配置示例
+
+```python
+LOCAL_PROVIDER_CONFIG = {
+    "AI_PROVIDER": "claude",
+    "CLAUDE_API_KEY": "你的 Claude API Key",
+    "CLAUDE_MODEL": "claude-sonnet-4-6",
+    "CLAUDE_API_BASE": "https://api.anthropic.com",
+    "CLAUDE_API_VERSION": "2023-06-01",
+}
+```
+
+## 4. 修改后如何生效
+
+修改 `config/local_provider_config.py` 后，重新启动服务：
 
 ```bash
 python run_server.py
 ```
 
-启动后打开：
+然后访问：
 
 - GUI: `http://localhost:8000/app`
 - Swagger: `http://localhost:8000/docs`
 
-## 2. 在 GUI 中配置模型
+## 5. 现在网页展示什么
 
-打开页面中的“模型配置”卡片后，按下面填写：
+网页现在只展示这个项目本身需要的内容：
 
-1. `Provider`
-   - 只演示功能时选 `mock`
-   - 使用 Google 模型时选 `gemini`
-   - 使用 Anthropic 模型时选 `claude`
+- RAG 系统概览
+- 核心模块
+- 接口清单
+- 模块实现状态
+- Python 配置位置
+- 问答演示
+- 反馈统计
 
-2. `模型名称`
-   - Gemini 推荐：`gemini-2.5-flash`
-   - Claude 推荐：`claude-sonnet-4-6`
-   - 也可以直接填更新的官方模型 ID
+已经移除了负责人、指导老师、经费等与系统功能无关的展示内容。
 
-3. `API Key`
-   - 直接粘贴到 GUI 里即可
-   - 不需要手动改 `.env`
+## 6. 当前模块核查结论
 
-4. `保存方式`
-   - `仅当前会话`
-     - 最安全，关闭服务后自动失效
-   - `本机安全存储（推荐）`
-     - 适合你自己电脑长期使用
-     - Windows 下会使用系统加密保护本地密钥
-   - `写入 .env（仅开发调试）`
-     - 只建议开发联调时使用
-     - 不建议公开演示或提交仓库
+按你给出的文档来看，项目不是“全部完全实现”，而是分为三类：
 
-5. 点击 `测试连接`
-   - 成功后会看到当前模型返回的简短结果
+- 已实现
+  - 通用 RAG 问答框架
+  - 混合检索
+  - 多游戏适配
+  - 反馈闭环基础接口
+  - Web GUI 与 Swagger
+  - Gemini / Claude 接入
 
-6. 点击 `保存并启用`
-   - 成功后页面会显示当前 Provider、模型和密钥脱敏状态
+- 部分实现
+  - 多模态语音 / 图像 / 触觉
+  - 语义耐心值模型
+  - 祖孙协作模式
+  - 方言识别
 
-## 3. 如何提问
+- 未完整实现
+  - 分布式爬虫集群与分钟级自动更新
+  - Jira 工单闭环
+  - NVIDIA NIM 推理优化
 
-在“系统演示 GUI”区域：
-
-1. 选择游戏
-2. 选择用户类型
-3. 输入问题
-4. 点击 `开始提问`
-
-返回结果会显示：
-
-- 回答内容
-- 置信度
-- 来源文档
-- 分步引导
-
-## 4. 如何删除已保存密钥
-
-如果你之前把密钥保存到了本机：
-
-1. 打开“模型配置”
-2. 选择对应的 Provider
-3. 点击 `清除已保存密钥`
-
-如果之前还写入过 `.env`，勾选“移除密钥时一并清理 .env”后再清除。
-
-## 5. 这次新增的安全措施
-
-- GUI 默认不把 API Key 写入 `.env`
-- 新增 Windows 本机安全存储，保存的密钥会加密
-- 运行时接口不会回显明文密钥
-- 500 错误不再把内部异常原样返回给前端
-- 问答日志中的敏感字段会自动脱敏
-- `/app` 和 `/api/*` 响应默认 `no-store`，降低浏览器缓存泄露风险
-- `.env` 已改为忽略提交，仓库内使用 `.env.example`
-
-## 6. 模型更新策略
-
-当前 GUI 中内置了已校验的推荐模型，并保留手动输入能力。
-
-- 如果官方发布了更新模型，你可以直接把新的模型 ID 填到“模型名称”
-- 不需要等代码改完才能试
-- 页面里会显示模型文档入口和最近校验日期
-
-## 7. 一条建议
-
-如果这个仓库历史里曾经提交过真实 API Key，请立即去对应平台执行密钥轮换。即使现在已经从 Git 跟踪中移除，旧历史仍然可能包含泄露风险。
+这些状态已经同步显示在页面和 `/api/v1/project/module-audit` 接口里。

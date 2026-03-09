@@ -4,46 +4,32 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Cache-Control" content="no-store">
-  <title>HUST 项目展示台 | 游戏问答智能体</title>
+  <title>RAG 游戏问答系统 | 项目控制台</title>
   <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
   <main class="layout">
     <section class="hero panel">
       <div class="hero-copy-block">
-        <p class="eyebrow">HUST Innovation Training Program</p>
+        <p class="eyebrow">RAG Game QA System</p>
         <h1 id="heroTitle">基于检索增强生成的游戏类问答智能体</h1>
-        <p id="heroSubtitle" class="hero-copy">正在加载项目概览与系统状态...</p>
+        <p id="heroSubtitle" class="hero-copy">正在加载系统概览与模块状态...</p>
         <div id="heroChips" class="chip-row"></div>
       </div>
       <div class="hero-actions">
         <a class="ghost-button" href="/docs" target="_blank" rel="noreferrer">Swagger 文档</a>
-        <a class="ghost-button" href="/api/v1/project/overview" target="_blank" rel="noreferrer">项目 JSON</a>
-        <button id="runBatchDemo" class="primary-button" type="button">运行答辩示例</button>
+        <a class="ghost-button" href="/api/v1/project/module-audit" target="_blank" rel="noreferrer">模块核查 JSON</a>
+        <button id="runBatchDemo" class="primary-button" type="button">运行示例问题</button>
       </div>
     </section>
 
     <section class="summary-grid">
       <article class="panel card">
         <div class="panel-header">
-          <h2>项目概览</h2>
-          <span class="metric-chip">中期展示</span>
+          <h2>系统概览</h2>
+          <span class="metric-chip">项目能力</span>
         </div>
-        <div id="projectMeta" class="detail-list"></div>
-      </article>
-
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>经费使用</h2>
-          <span id="fundingChip" class="metric-chip">加载中</span>
-        </div>
-        <div class="progress-block">
-          <div class="progress-track">
-            <div id="fundingBar" class="progress-bar"></div>
-          </div>
-          <div id="fundingSummary" class="progress-summary"></div>
-        </div>
-        <ul id="fundingDetails" class="simple-list compact-list"></ul>
+        <div id="overviewCards" class="mini-stats"></div>
       </article>
 
       <article class="panel card">
@@ -56,152 +42,86 @@
 
       <article class="panel card">
         <div class="panel-header">
-          <h2>时间线</h2>
-          <span class="metric-chip">2025-2026</span>
+          <h2>知识库覆盖</h2>
+          <span id="coverageChip" class="metric-chip">加载中</span>
         </div>
-        <div id="timelineList" class="timeline-list"></div>
-      </article>
-    </section>
-
-    <section class="narrative-grid">
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>研究进展</h2>
-          <span class="metric-chip">中期</span>
-        </div>
-        <ul id="progressList" class="simple-list"></ul>
+        <div id="coverageGrid" class="coverage-grid"></div>
       </article>
 
       <article class="panel card">
         <div class="panel-header">
-          <h2>阶段成果</h2>
-          <span class="metric-chip">已完成</span>
+          <h2>模块核查</h2>
+          <span id="auditChip" class="metric-chip">读取中</span>
         </div>
-        <ul id="resultsList" class="simple-list"></ul>
-      </article>
-
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>当前问题</h2>
-          <span class="metric-chip alert-chip">待优化</span>
-        </div>
-        <ul id="issuesList" class="simple-list"></ul>
-      </article>
-
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>下一阶段计划</h2>
-          <span class="metric-chip">后续</span>
-        </div>
-        <ul id="planList" class="simple-list"></ul>
+        <div id="auditSummary" class="mini-stats"></div>
       </article>
     </section>
 
     <section class="deep-grid">
       <article class="panel card">
         <div class="panel-header">
-          <h2>创新点</h2>
-          <span class="metric-chip">项目亮点</span>
+          <h2>架构设计</h2>
+          <span class="metric-chip">模块视图</span>
         </div>
-        <ul id="innovationList" class="simple-list"></ul>
+        <div id="architectureStack" class="highlight-stack"></div>
       </article>
 
       <article class="panel card">
         <div class="panel-header">
-          <h2>团队成员</h2>
-          <span class="metric-chip">协作分工</span>
+          <h2>已接入模块</h2>
+          <span class="metric-chip">可演示</span>
         </div>
-        <div id="teamGrid" class="member-grid"></div>
+        <ul id="implementedList" class="simple-list"></ul>
       </article>
 
       <article class="panel card">
         <div class="panel-header">
-          <h2>申报书要点</h2>
-          <span class="metric-chip">研究设计</span>
+          <h2>RAG API</h2>
+          <span class="metric-chip">接口清单</span>
         </div>
-        <div id="proposalHighlights" class="highlight-stack"></div>
+        <div id="apiReferenceList" class="api-reference"></div>
       </article>
 
       <article class="panel card">
         <div class="panel-header">
-          <h2>知识库覆盖</h2>
-          <span id="coverageChip" class="metric-chip">加载中</span>
+          <h2>Python 配置</h2>
+          <span id="providerStatusBadge" class="metric-chip">读取中</span>
         </div>
-        <div id="coverageGrid" class="coverage-grid"></div>
+        <div class="config-guide">
+          <p class="subtle">模型 API Key 现在通过 Python 配置文件填写，不再要求用户在网页中输入。</p>
+          <div class="meta-row" id="providerSnapshot"></div>
+          <div class="detail-item config-path-card">
+            <span>配置文件</span>
+            <strong id="pythonConfigPath">config/local_provider_config.py</strong>
+          </div>
+          <ul id="pythonConfigSteps" class="simple-list"></ul>
+          <pre id="pythonConfigCode" class="code-block"></pre>
+        </div>
       </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h2>模块实现状态</h2>
+        <span class="metric-chip">按设计文档核查</span>
+      </div>
+      <div id="moduleAuditGrid" class="audit-grid"></div>
     </section>
 
     <section class="panel demo-panel">
       <div class="panel-header">
-        <h2>答辩示例场景</h2>
+        <h2>示例问题</h2>
         <span class="metric-chip">一键填充 / 批量演示</span>
       </div>
       <div id="demoScenarioButtons" class="scenario-row"></div>
       <div id="batchDemoResults" class="batch-results">
-        <p class="subtle">点击上方场景可自动填入问答区，也可以使用“运行答辩示例”批量演示。</p>
+        <p class="subtle">点击上方示例可自动填入问答区，也可以运行批量演示。</p>
       </div>
-    </section>
-
-    <section class="panel config-panel">
-      <div class="panel-header">
-        <h2>模型配置</h2>
-        <span id="providerStatusBadge" class="metric-chip">读取中</span>
-      </div>
-      <p class="subtle">
-        这里支持直接在图形界面中输入 API Key。默认只保存在当前会话，不落盘；如需下次自动恢复，推荐使用“本机安全存储”。
-      </p>
-      <form id="providerForm" class="provider-form">
-        <label>
-          Provider
-          <select id="providerSelect">
-            <option value="mock">mock</option>
-            <option value="gemini">gemini</option>
-            <option value="claude">claude</option>
-          </select>
-        </label>
-
-        <label>
-          模型名称
-          <input id="providerModel" list="modelSuggestionList" type="text" placeholder="例如 gemini-2.5-flash">
-          <datalist id="modelSuggestionList"></datalist>
-        </label>
-
-        <label>
-          保存方式
-          <select id="storageMode">
-            <option value="session">仅当前会话</option>
-            <option value="secure_local">本机安全存储（推荐）</option>
-            <option value="env">写入 .env（仅开发调试）</option>
-          </select>
-        </label>
-
-        <label class="provider-key-field">
-          API Key
-          <div class="secret-field">
-            <input id="providerApiKey" type="password" placeholder="在这里粘贴 API Key">
-            <button id="toggleApiKeyVisibility" class="ghost-button inline-button" type="button">显示</button>
-          </div>
-        </label>
-
-        <label class="toggle">
-          <input id="clearEnvOnRemove" type="checkbox">
-          <span>移除密钥时一并清理 .env</span>
-        </label>
-
-        <div class="provider-actions">
-          <button id="saveProviderConfig" class="primary-button" type="submit">保存并启用</button>
-          <button id="testProviderConfig" class="ghost-button" type="button">测试连接</button>
-          <button id="clearProviderConfig" class="text-button danger-button" type="button">清除已保存密钥</button>
-        </div>
-      </form>
-      <p id="providerHint" class="subtle"></p>
-      <div id="providerSnapshot" class="meta-row"></div>
-      <p id="providerMessage" class="feedback-message"></p>
     </section>
 
     <section class="question-panel panel">
       <div class="panel-header">
-        <h2>系统演示 GUI</h2>
+        <h2>问答演示</h2>
         <span id="statusBadge" class="status-badge">待提问</span>
       </div>
 
@@ -247,6 +167,11 @@
           <span>返回分步引导</span>
         </label>
 
+        <label class="toggle">
+          <input id="familyMode" type="checkbox">
+          <span>启用祖孙协作模式</span>
+        </label>
+
         <label class="question-field">
           你的问题
           <textarea id="questionInput" rows="5" placeholder="例如：原神里怎么高效触发蒸发反应？"></textarea>
@@ -264,7 +189,6 @@
         </div>
 
         <div id="answerBox" class="answer-box">回答会显示在这里。</div>
-
         <div class="meta-row" id="metaRow"></div>
 
         <section class="subpanel">
@@ -277,13 +201,18 @@
         <section class="subpanel">
           <h3>无障碍分步引导</h3>
           <ol id="assistiveSteps" class="steps-list">
-            <li>勾选“返回分步引导”后提问，这里会出现适合辅助场景的操作步骤。</li>
+            <li>勾选“返回分步引导”后提问，这里会显示辅助步骤。</li>
           </ol>
+        </section>
+
+        <section class="subpanel">
+          <h3>祖孙协作摘要</h3>
+          <div id="familyGuideBox" class="subtle">启用祖孙协作模式后，这里会显示拼音图文指南摘要。</div>
         </section>
 
         <section class="subpanel feedback-panel">
           <h3>反馈闭环</h3>
-          <p class="subtle">每次反馈都会进入本地分析链路，用于演示趋势统计和优先级报告。</p>
+          <p class="subtle">每次反馈都会进入本地分析链路，用于统计与优先级分析。</p>
           <div class="rating-row" id="ratingRow">
             <button type="button" class="rating-button" data-rating="5">很有帮助</button>
             <button type="button" class="rating-button" data-rating="4">基本可用</button>

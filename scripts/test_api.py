@@ -183,7 +183,7 @@ def test_with_client():
         print(f"  状态码: {response.status_code}")
         if response.status_code == 200:
             data = response.json()
-            print(f"  项目名: {data.get('project_info', {}).get('project_name')}")
+            print(f"  项目名: {data.get('system_info', {}).get('project_name')}")
             print("  ✅ 通过")
         else:
             print(f"  ❌ 失败: {response.text}")

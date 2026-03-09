@@ -1,7 +1,7 @@
-# 项目展示路由
 from __future__ import annotations
 
 import json
+import logging
 from collections import Counter
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -12,12 +12,15 @@ from pydantic import BaseModel, Field
 from config.database import Feedback, QueryLog, SessionLocal, database_status
 from config.runtime_config import get_provider_snapshot
 from core.rag_engine import RAGEngine
+from utils.security import redact_sensitive_text
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_SHOWCASE_PATH = PROJECT_ROOT / "data" / "project_showcase.json"
 SAMPLE_DATA_PATH = PROJECT_ROOT / "data" / "sample_data.json"
+LOCAL_PROVIDER_CONFIG_PATH = PROJECT_ROOT / "config" / "local_provider_config.py"
 
 
 def _load_json_file(path: Path) -> Dict[str, Any]:
@@ -64,12 +67,15 @@ def _build_runtime_metrics() -> Dict[str, Any]:
         feedback_rows = db.query(Feedback).all()
         queries_by_game = Counter(row.game_id or "unknown" for row in query_rows)
         feedback_by_game = Counter(row.game_id or "unknown" for row in feedback_rows)
-
         provider_snapshot = get_provider_snapshot()
         return {
             "database": database_status(),
             "ai_provider": provider_snapshot["provider"],
+            "model": provider_snapshot["model"],
             "live_llm_enabled": provider_snapshot["live_llm_enabled"],
+            "python_config_file": str(LOCAL_PROVIDER_CONFIG_PATH.relative_to(PROJECT_ROOT)),
+            "python_config_exists": LOCAL_PROVIDER_CONFIG_PATH.exists(),
+            "storage_mode": provider_snapshot["storage_mode"],
             "total_queries": len(query_rows),
             "total_feedback": len(feedback_rows),
             "queries_by_game": dict(queries_by_game),
@@ -88,7 +94,7 @@ def _build_runtime_metrics() -> Dict[str, Any]:
 
 
 class DemoBatchItem(BaseModel):
-    game_id: str = Field(..., description="游戏ID")
+    game_id: str = Field(..., description="游戏 ID")
     question: str = Field(..., description="要演示的问题")
     user_context: Optional[Dict[str, Any]] = Field(default=None)
 
@@ -112,7 +118,6 @@ class DemoBatchResponse(BaseModel):
 
 @router.get("/overview")
 async def get_project_overview():
-    """返回项目展示数据与实时系统指标。"""
     try:
         showcase = _load_project_showcase()
         return {
@@ -121,12 +126,32 @@ async def get_project_overview():
             "runtime_metrics": _build_runtime_metrics(),
         }
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"项目概览加载失败: {exc}")
+        logger.error("Failed to load project overview: %s", redact_sensitive_text(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail="项目概览加载失败")
+
+
+@router.get("/module-audit")
+async def get_module_audit():
+    try:
+        showcase = _load_project_showcase()
+        audit_items = showcase.get("module_audit", [])
+        summary = {
+            "implemented": sum(1 for item in audit_items if item.get("status") == "implemented"),
+            "partial": sum(1 for item in audit_items if item.get("status") == "partial"),
+            "missing": sum(1 for item in audit_items if item.get("status") == "missing"),
+            "total": len(audit_items),
+        }
+        return {
+            "summary": summary,
+            "items": audit_items,
+        }
+    except Exception as exc:
+        logger.error("Failed to load module audit: %s", redact_sensitive_text(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail="模块核查加载失败")
 
 
 @router.post("/demo-batch", response_model=DemoBatchResponse)
 async def run_demo_batch(req: DemoBatchRequest):
-    """批量运行预设演示问题，适合答辩或展示。"""
     try:
         results: List[DemoBatchResult] = []
         for item in req.items:
@@ -144,4 +169,5 @@ async def run_demo_batch(req: DemoBatchRequest):
             )
         return DemoBatchResponse(results=results)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"批量演示失败: {exc}")
+        logger.error("Batch demo failed: %s", redact_sensitive_text(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail="批量演示失败")
