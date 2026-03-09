@@ -25,7 +25,7 @@ class Settings:
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info")
 
     # AI Provider配置
-    AI_PROVIDER: str = os.getenv("AI_PROVIDER", "claude")  # claude | openai
+    AI_PROVIDER: str = os.getenv("AI_PROVIDER", "mock")  # mock | claude | openai | gemini
     
     # Claude配置
     CLAUDE_API_KEY: str = os.getenv("CLAUDE_API_KEY", "")
@@ -33,6 +33,16 @@ class Settings:
     CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-20241022")
     CLAUDE_MAX_TOKENS: int = int(os.getenv("CLAUDE_MAX_TOKENS", "2000"))
     CLAUDE_TEMPERATURE: float = float(os.getenv("CLAUDE_TEMPERATURE", "0.7"))
+
+    # Gemini配置
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_API_BASE: str = os.getenv(
+        "GEMINI_API_BASE",
+        "https://generativelanguage.googleapis.com/v1beta",
+    )
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    GEMINI_MAX_TOKENS: int = int(os.getenv("GEMINI_MAX_TOKENS", "2048"))
+    GEMINI_TEMPERATURE: float = float(os.getenv("GEMINI_TEMPERATURE", "0.7"))
     
     # 模型配置（保持向后兼容）
     DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "claude-3-5-sonnet-20241022")
@@ -69,6 +79,16 @@ class Settings:
     def get_redis_url(cls) -> str:
         """获取Redis连接URL"""
         return os.getenv("REDIS_URL", "redis://localhost:6379")
+
+    @classmethod
+    def has_live_llm_config(cls) -> bool:
+        """是否配置了真实可调用的外部大模型。"""
+        provider = cls.AI_PROVIDER.lower()
+        if provider == "gemini":
+            return bool(cls.GEMINI_API_KEY)
+        if provider == "claude":
+            return bool(cls.CLAUDE_API_KEY)
+        return False
 
 
 # 全局配置实例

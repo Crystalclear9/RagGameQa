@@ -84,6 +84,7 @@ class RAGEngine:
                 "processing_time": round(processing_time, 3),
                 "retrieved": len(retrieved_docs),
                 "query_log_id": query_log_id,
+                "ai_provider": getattr(self.generator, "ai_provider", "memory"),
             },
         }
 

@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from config.database import Feedback, QueryLog, SessionLocal, database_status
+from config.settings import settings
 from core.rag_engine import RAGEngine
 
 router = APIRouter()
@@ -66,6 +67,8 @@ def _build_runtime_metrics() -> Dict[str, Any]:
 
         return {
             "database": database_status(),
+            "ai_provider": settings.AI_PROVIDER.lower(),
+            "live_llm_enabled": settings.has_live_llm_config(),
             "total_queries": len(query_rows),
             "total_feedback": len(feedback_rows),
             "queries_by_game": dict(queries_by_game),

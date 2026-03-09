@@ -3,6 +3,7 @@ import json
 import os
 from typing import List, Dict, Any
 import logging
+import jieba
 
 logger = logging.getLogger(__name__)
 
@@ -49,18 +50,27 @@ class SimpleMemoryRetriever:
         
         try:
             query_lower = query.lower()
+            query_tokens = self._tokenize(query_lower)
             results = []
             
             for doc in self.documents:
                 content = doc.get('content', '').lower()
                 title = doc.get('title', '').lower()
+                category = doc.get('category', '').lower()
+                doc_text = f"{title} {content} {category}"
                 
-                # 简单的关键词匹配
-                score = 0
-                if any(word in content for word in query_lower.split()):
-                    score += 1
-                if any(word in title for word in query_lower.split()):
-                    score += 2
+                score = 0.0
+                if query_lower and query_lower in doc_text:
+                    score += 3.0
+
+                overlap = 0
+                for token in query_tokens:
+                    if token in title:
+                        overlap += 2
+                    elif token in content or token in category:
+                        overlap += 1
+
+                score += float(overlap)
                 
                 if score > 0:
                     results.append({
@@ -68,7 +78,11 @@ class SimpleMemoryRetriever:
                         'title': doc.get('title', ''),
                         'category': doc.get('category', ''),
                         'source': doc.get('source', ''),
-                        'score': float(score)
+                        'score': float(score),
+                        'metadata': {
+                            'title': doc.get('title', ''),
+                            'source': doc.get('source', ''),
+                        }
                     })
             
             # 按分数排序
@@ -78,3 +92,13 @@ class SimpleMemoryRetriever:
         except Exception as e:
             logger.error(f"检索失败: {e}")
             return []
+
+    def _tokenize(self, text: str) -> List[str]:
+        tokens = []
+        for token in jieba.cut(text):
+            token = token.strip()
+            if len(token) >= 2:
+                tokens.append(token)
+        if not tokens and text:
+            tokens.append(text)
+        return list(dict.fromkeys(tokens))

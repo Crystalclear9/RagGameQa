@@ -98,6 +98,7 @@ function renderHero(overview) {
     `项目编号 ${info.project_number || "--"}`,
     `负责人 ${info.leader || "--"}`,
     `指导老师 ${info.advisor || "--"}`,
+    `模型 ${runtime.ai_provider || "mock"}`,
     `总查询 ${runtime.total_queries ?? 0}`,
     `总反馈 ${runtime.total_feedback ?? 0}`,
   ].map((item) => `<span class="chip">${escapeHtml(item)}</span>`).join("");
@@ -148,6 +149,7 @@ function renderRuntime(overview) {
     ["总反馈量", runtime.total_feedback ?? 0, "闭环数据"],
     ["平均置信度", runtime.average_confidence ?? 0, "问答输出"],
     ["平均耗时", `${runtime.average_processing_time ?? 0}s`, "接口处理"],
+    ["当前模型", runtime.ai_provider ?? "mock", runtime.live_llm_enabled ? "真实外部模型已启用" : "当前为回退或本地模式"],
   ];
   refs.runtimeCards.innerHTML = entries
     .map(

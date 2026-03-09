@@ -2,6 +2,8 @@
 import logging
 from typing import List, Dict, Any
 
+from config.settings import settings
+
 logger = logging.getLogger(__name__)
 
 class MemoryLLMGenerator:
@@ -9,11 +11,19 @@ class MemoryLLMGenerator:
     
     def __init__(self, game_id: str):
         self.game_id = game_id
+        self.live_generator = None
+        if settings.AI_PROVIDER.lower() == "gemini" and settings.GEMINI_API_KEY:
+            from core.generator.llm_generator import LLMGenerator
+
+            self.live_generator = LLMGenerator(game_id)
         logger.info(f"内存模式LLM生成器初始化: {game_id}")
     
     async def generate(self, question: str, context_docs: List[Dict[str, Any]], user_context: Dict[str, Any] = None) -> str:
         """基于检索文档生成答案"""
         try:
+            if self.live_generator is not None:
+                return await self.live_generator.generate(question, context_docs, user_context)
+
             if not context_docs:
                 return f"抱歉，我没有找到关于'{question}'的相关信息。请尝试其他问题。"
             
