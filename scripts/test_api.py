@@ -176,6 +176,39 @@ def test_with_client():
             print("  ✅ 通过")
         else:
             print(f"  ❌ 失败: {response.text}")
+
+        # 测试12: 项目展示概览
+        print("\n[测试12] GET /api/v1/project/overview")
+        response = client.get("/api/v1/project/overview")
+        print(f"  状态码: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"  项目名: {data.get('project_info', {}).get('project_name')}")
+            print("  ✅ 通过")
+        else:
+            print(f"  ❌ 失败: {response.text}")
+
+        # 测试13: 批量演示接口
+        print("\n[测试13] POST /api/v1/project/demo-batch")
+        response = client.post("/api/v1/project/demo-batch", json={
+            "items": [
+                {
+                    "game_id": "wow",
+                    "question": "如何通过组队查找器加入副本？"
+                },
+                {
+                    "game_id": "genshin",
+                    "question": "蒸发反应怎么触发？"
+                }
+            ]
+        })
+        print(f"  状态码: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"  返回结果数: {len(data.get('results', []))}")
+            print("  ✅ 通过")
+        else:
+            print(f"  ❌ 失败: {response.text}")
         
         return True
         

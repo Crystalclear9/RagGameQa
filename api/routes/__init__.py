@@ -8,6 +8,7 @@ API路由模块
 # 核心路由（必需）
 from . import qa_routes
 from . import analytics_routes
+from . import project_routes
 
 # 可选路由（可能不存在）
 try:
@@ -23,6 +24,7 @@ except ImportError:
 __all__ = [
     "qa_routes",
     "analytics_routes",
+    "project_routes",
     "health_routes",
     "multimodal_routes"
 ]

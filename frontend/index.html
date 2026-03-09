@@ -3,28 +3,149 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RAG 游戏问答工作台</title>
+  <title>HUST 项目展示台 | RAG 游戏问答智能体</title>
   <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
   <main class="layout">
     <section class="hero panel">
-      <div>
-        <p class="eyebrow">HUST Innovation Project</p>
-        <h1>RAG 游戏问答工作台</h1>
-        <p class="hero-copy">
-          面向普通用户、测试成员和指导老师的可视化入口。现在可以直接提问、查看来源、提交反馈，并观察最近的查询与问题优先级。
+      <div class="hero-copy-block">
+        <p class="eyebrow">HUST Innovation Training Program</p>
+        <h1 id="heroTitle">基于检索增强生成的游戏类问答智能体</h1>
+        <p id="heroSubtitle" class="hero-copy">
+          项目展示数据加载中。
         </p>
+        <div id="heroChips" class="chip-row"></div>
       </div>
       <div class="hero-actions">
-        <a class="ghost-button" href="/docs" target="_blank" rel="noreferrer">打开 Swagger</a>
-        <a class="ghost-button" href="/api/v1/multimodal/capabilities" target="_blank" rel="noreferrer">多模态能力</a>
+        <a class="ghost-button" href="/docs" target="_blank" rel="noreferrer">Swagger 文档</a>
+        <a class="ghost-button" href="/api/v1/project/overview" target="_blank" rel="noreferrer">项目 JSON</a>
+        <button id="runBatchDemo" class="primary-button" type="button">运行答辩示例</button>
+      </div>
+    </section>
+
+    <section class="summary-grid">
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>项目概览</h2>
+          <span class="metric-chip">中期展示</span>
+        </div>
+        <div id="projectMeta" class="detail-list"></div>
+      </article>
+
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>经费情况</h2>
+          <span id="fundingChip" class="metric-chip">加载中</span>
+        </div>
+        <div class="progress-block">
+          <div class="progress-track">
+            <div id="fundingBar" class="progress-bar"></div>
+          </div>
+          <div id="fundingSummary" class="progress-summary"></div>
+        </div>
+        <ul id="fundingDetails" class="simple-list compact-list"></ul>
+      </article>
+
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>运行状态</h2>
+          <span id="databaseBadge" class="status-badge">检测中</span>
+        </div>
+        <div id="runtimeCards" class="mini-stats"></div>
+      </article>
+
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>时间线</h2>
+          <span class="metric-chip">2025-2026</span>
+        </div>
+        <div id="timelineList" class="timeline-list"></div>
+      </article>
+    </section>
+
+    <section class="narrative-grid">
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>研究进展</h2>
+          <span class="metric-chip">中期</span>
+        </div>
+        <ul id="progressList" class="simple-list"></ul>
+      </article>
+
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>阶段成果</h2>
+          <span class="metric-chip">已完成</span>
+        </div>
+        <ul id="resultsList" class="simple-list"></ul>
+      </article>
+
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>当前问题</h2>
+          <span class="metric-chip alert-chip">待优化</span>
+        </div>
+        <ul id="issuesList" class="simple-list"></ul>
+      </article>
+
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>后续计划</h2>
+          <span class="metric-chip">下一阶段</span>
+        </div>
+        <ul id="planList" class="simple-list"></ul>
+      </article>
+    </section>
+
+    <section class="deep-grid">
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>创新特色</h2>
+          <span class="metric-chip">核心亮点</span>
+        </div>
+        <ul id="innovationList" class="simple-list"></ul>
+      </article>
+
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>项目成员</h2>
+          <span class="metric-chip">团队协作</span>
+        </div>
+        <div id="teamGrid" class="member-grid"></div>
+      </article>
+
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>申报书要点</h2>
+          <span class="metric-chip">研究设计</span>
+        </div>
+        <div id="proposalHighlights" class="highlight-stack"></div>
+      </article>
+
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>知识库覆盖</h2>
+          <span id="coverageChip" class="metric-chip">加载中</span>
+        </div>
+        <div id="coverageGrid" class="coverage-grid"></div>
+      </article>
+    </section>
+
+    <section class="panel demo-panel">
+      <div class="panel-header">
+        <h2>答辩示例场景</h2>
+        <span class="metric-chip">一键填充 / 批量运行</span>
+      </div>
+      <div id="demoScenarioButtons" class="scenario-row"></div>
+      <div id="batchDemoResults" class="batch-results">
+        <p class="subtle">点击上方场景将问题填入问答区，或使用右上角“运行答辩示例”批量展示结果。</p>
       </div>
     </section>
 
     <section class="question-panel panel">
       <div class="panel-header">
-        <h2>智能问答</h2>
+        <h2>系统演示 GUI</h2>
         <span id="statusBadge" class="status-badge">待提问</span>
       </div>
 
@@ -123,7 +244,7 @@
 
       <aside class="panel dashboard-panel">
         <div class="panel-header">
-          <h2>项目看板</h2>
+          <h2>实时数据看板</h2>
           <button id="refreshDashboard" class="text-button" type="button">刷新</button>
         </div>
 
