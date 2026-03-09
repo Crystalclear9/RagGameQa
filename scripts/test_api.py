@@ -209,6 +209,46 @@ def test_with_client():
             print("  ✅ 通过")
         else:
             print(f"  ❌ 失败: {response.text}")
+
+        # 测试14: 运行时配置读取
+        print("\n[测试14] GET /api/v1/runtime/provider-config")
+        response = client.get("/api/v1/runtime/provider-config")
+        print(f"  状态码: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"  当前Provider: {data.get('provider')}")
+            print("  ✅ 通过")
+        else:
+            print(f"  ❌ 失败: {response.text}")
+
+        # 测试15: 运行时配置更新
+        print("\n[测试15] POST /api/v1/runtime/provider-config")
+        response = client.post("/api/v1/runtime/provider-config", json={
+            "provider": "mock",
+            "model": "mock-llm-v1",
+            "persist_to_env": False
+        })
+        print(f"  状态码: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"  更新后Provider: {data.get('provider')}")
+            print("  ✅ 通过")
+        else:
+            print(f"  ❌ 失败: {response.text}")
+
+        # 测试16: 运行时配置测试
+        print("\n[测试16] POST /api/v1/runtime/provider-config/test")
+        response = client.post("/api/v1/runtime/provider-config/test", json={
+            "provider": "mock",
+            "model": "mock-llm-v1"
+        })
+        print(f"  状态码: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"  测试结果: {data.get('success')}")
+            print("  ✅ 通过")
+        else:
+            print(f"  ❌ 失败: {response.text}")
         
         return True
         

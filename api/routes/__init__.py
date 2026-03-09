@@ -9,6 +9,7 @@ API路由模块
 from . import qa_routes
 from . import analytics_routes
 from . import project_routes
+from . import runtime_routes
 
 # 可选路由（可能不存在）
 try:
@@ -25,6 +26,7 @@ __all__ = [
     "qa_routes",
     "analytics_routes",
     "project_routes",
+    "runtime_routes",
     "health_routes",
     "multimodal_routes"
 ]

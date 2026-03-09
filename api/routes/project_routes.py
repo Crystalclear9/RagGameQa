@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from config.database import Feedback, QueryLog, SessionLocal, database_status
-from config.settings import settings
+from config.runtime_config import get_provider_snapshot
 from core.rag_engine import RAGEngine
 
 router = APIRouter()
@@ -65,10 +65,11 @@ def _build_runtime_metrics() -> Dict[str, Any]:
         queries_by_game = Counter(row.game_id or "unknown" for row in query_rows)
         feedback_by_game = Counter(row.game_id or "unknown" for row in feedback_rows)
 
+        provider_snapshot = get_provider_snapshot()
         return {
             "database": database_status(),
-            "ai_provider": settings.AI_PROVIDER.lower(),
-            "live_llm_enabled": settings.has_live_llm_config(),
+            "ai_provider": provider_snapshot["provider"],
+            "live_llm_enabled": provider_snapshot["live_llm_enabled"],
             "total_queries": len(query_rows),
             "total_feedback": len(feedback_rows),
             "queries_by_game": dict(queries_by_game),

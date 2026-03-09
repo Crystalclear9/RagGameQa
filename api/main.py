@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 import time
 import logging
-from api.routes import analytics_routes, project_routes, qa_routes
+from api.routes import analytics_routes, project_routes, qa_routes, runtime_routes
 from config.settings import settings
 from config.database import create_tables, database_status
 
@@ -90,6 +90,7 @@ async def startup_event():
 app.include_router(qa_routes.router, prefix="/api/v1/qa", tags=["问答"])
 app.include_router(analytics_routes.router, prefix="/api/v1/analytics", tags=["分析"])
 app.include_router(project_routes.router, prefix="/api/v1/project", tags=["项目展示"])
+app.include_router(runtime_routes.router, prefix="/api/v1/runtime", tags=["运行时配置"])
 
 # 注册可选路由
 if HAS_MULTIMODAL and multimodal_routes:
@@ -121,6 +122,7 @@ async def root():
             "qa": True,
             "analytics": True,
             "project_showcase": True,
+            "runtime_config": True,
             "multimodal": HAS_MULTIMODAL,
             "health": HAS_HEALTH,
             "web_frontend": frontend_dir.exists(),

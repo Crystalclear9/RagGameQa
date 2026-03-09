@@ -28,6 +28,16 @@ const refs = {
   demoScenarioButtons: document.getElementById("demoScenarioButtons"),
   batchDemoResults: document.getElementById("batchDemoResults"),
   runBatchDemo: document.getElementById("runBatchDemo"),
+  providerForm: document.getElementById("providerForm"),
+  providerSelect: document.getElementById("providerSelect"),
+  providerModel: document.getElementById("providerModel"),
+  providerApiKey: document.getElementById("providerApiKey"),
+  persistProviderConfig: document.getElementById("persistProviderConfig"),
+  saveProviderConfig: document.getElementById("saveProviderConfig"),
+  testProviderConfig: document.getElementById("testProviderConfig"),
+  providerStatusBadge: document.getElementById("providerStatusBadge"),
+  providerSnapshot: document.getElementById("providerSnapshot"),
+  providerMessage: document.getElementById("providerMessage"),
   qaForm: document.getElementById("qaForm"),
   gameId: document.getElementById("gameId"),
   userType: document.getElementById("userType"),
@@ -102,6 +112,18 @@ function renderHero(overview) {
     `总查询 ${runtime.total_queries ?? 0}`,
     `总反馈 ${runtime.total_feedback ?? 0}`,
   ].map((item) => `<span class="chip">${escapeHtml(item)}</span>`).join("");
+}
+
+function renderProviderSnapshot(snapshot) {
+  refs.providerStatusBadge.textContent = `${snapshot.provider} ${snapshot.live_llm_enabled ? "已启用" : "待配置"}`;
+  refs.providerSelect.value = snapshot.provider || "mock";
+  refs.providerModel.value = snapshot.model || "";
+  refs.providerApiKey.value = "";
+  refs.providerSnapshot.innerHTML = [
+    `Provider ${snapshot.provider || "mock"}`,
+    `模型 ${snapshot.model || "--"}`,
+    snapshot.api_key_configured ? `已配置密钥 ${snapshot.api_key_masked || ""}` : "未配置密钥",
+  ].map((item) => `<span class="meta-pill">${escapeHtml(item)}</span>`).join("");
 }
 
 function renderProjectMeta(overview) {
@@ -390,6 +412,12 @@ async function loadOverview() {
   renderDemoScenarios(overview);
 }
 
+async function loadProviderConfig() {
+  const snapshot = await fetchJson("/api/v1/runtime/provider-config");
+  renderProviderSnapshot(snapshot);
+  return snapshot;
+}
+
 async function refreshDashboard() {
   const gameId = refs.gameId.value;
   try {
@@ -408,7 +436,7 @@ async function refreshDashboard() {
 }
 
 async function syncProjectView() {
-  await Promise.all([loadOverview(), refreshDashboard()]);
+  await Promise.all([loadOverview(), refreshDashboard(), loadProviderConfig()]);
 }
 
 async function submitQuestion(event) {
@@ -515,6 +543,50 @@ async function runBatchDemo() {
   }
 }
 
+async function saveProviderConfig(event) {
+  event.preventDefault();
+  refs.providerMessage.textContent = "正在保存配置...";
+  try {
+    const payload = {
+      provider: refs.providerSelect.value,
+      model: refs.providerModel.value.trim() || null,
+      api_key: refs.providerApiKey.value.trim() || null,
+      persist_to_env: refs.persistProviderConfig.checked,
+    };
+    const snapshot = await fetchJson("/api/v1/runtime/provider-config", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    renderProviderSnapshot(snapshot);
+    refs.providerMessage.textContent = snapshot.persisted
+      ? "配置已保存并写回 .env。"
+      : "配置已保存到当前运行会话。";
+    await syncProjectView();
+  } catch (error) {
+    refs.providerMessage.textContent = `保存失败：${error.message}`;
+  }
+}
+
+async function testProviderConfig() {
+  refs.providerMessage.textContent = "正在测试连接...";
+  try {
+    const payload = {
+      provider: refs.providerSelect.value,
+      model: refs.providerModel.value.trim() || null,
+      api_key: refs.providerApiKey.value.trim() || null,
+    };
+    const result = await fetchJson("/api/v1/runtime/provider-config/test", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    refs.providerMessage.textContent = result.success
+      ? `连接测试成功：${result.preview}`
+      : `连接测试未通过：${result.preview}`;
+  } catch (error) {
+    refs.providerMessage.textContent = `测试失败：${error.message}`;
+  }
+}
+
 function bindRatingButtons() {
   const buttons = refs.ratingRow.querySelectorAll(".rating-button");
   buttons.forEach((button) => {
@@ -527,10 +599,12 @@ function bindRatingButtons() {
 }
 
 refs.qaForm.addEventListener("submit", submitQuestion);
+refs.providerForm.addEventListener("submit", saveProviderConfig);
 refs.submitFeedback.addEventListener("click", submitFeedback);
 refs.refreshDashboard.addEventListener("click", refreshDashboard);
 refs.gameId.addEventListener("change", refreshDashboard);
 refs.runBatchDemo.addEventListener("click", runBatchDemo);
+refs.testProviderConfig.addEventListener("click", testProviderConfig);
 
 bindRatingButtons();
 syncProjectView().catch((error) => {

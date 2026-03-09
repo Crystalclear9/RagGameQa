@@ -143,6 +143,48 @@
       </div>
     </section>
 
+    <section class="panel config-panel">
+      <div class="panel-header">
+        <h2>模型配置</h2>
+        <span id="providerStatusBadge" class="metric-chip">读取中</span>
+      </div>
+      <p class="subtle">
+        用户可以直接在图形界面里输入 API Key 并启用模型，不需要手动编辑 `.env`。如果勾选“写回 .env”，下次启动也会保留。
+      </p>
+      <form id="providerForm" class="provider-form">
+        <label>
+          Provider
+          <select id="providerSelect">
+            <option value="mock">mock</option>
+            <option value="gemini">gemini</option>
+            <option value="claude">claude</option>
+          </select>
+        </label>
+
+        <label>
+          模型名
+          <input id="providerModel" type="text" placeholder="例如 gemini-2.5-flash">
+        </label>
+
+        <label class="provider-key-field">
+          API Key
+          <input id="providerApiKey" type="password" placeholder="在这里粘贴你的 API Key">
+        </label>
+
+        <label class="toggle">
+          <input id="persistProviderConfig" type="checkbox">
+          <span>写回 .env</span>
+        </label>
+
+        <div class="provider-actions">
+          <button id="saveProviderConfig" class="primary-button" type="submit">保存并启用</button>
+          <button id="testProviderConfig" class="ghost-button" type="button">测试连接</button>
+        </div>
+      </form>
+      <div id="providerSnapshot" class="meta-row"></div>
+      <p id="providerMessage" class="feedback-message"></p>
+    </section>
+
     <section class="question-panel panel">
       <div class="panel-header">
         <h2>系统演示 GUI</h2>

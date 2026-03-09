@@ -368,6 +368,36 @@ h3 {
   margin-top: 6px;
 }
 
+.config-panel {
+  padding: 22px;
+}
+
+.provider-form {
+  margin-top: 16px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.provider-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.provider-key-field {
+  grid-column: span 2;
+}
+
+.provider-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+
 .scenario-button {
   padding: 10px 14px;
   text-align: left;
@@ -583,6 +613,10 @@ textarea:focus {
   .qa-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .provider-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
@@ -606,7 +640,12 @@ textarea:focus {
   .stats-grid,
   .member-grid,
   .coverage-grid,
-  .qa-form {
+  .qa-form,
+  .provider-form {
     grid-template-columns: 1fr;
+  }
+
+  .provider-key-field {
+    grid-column: auto;
   }
 }
