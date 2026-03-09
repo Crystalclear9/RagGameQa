@@ -78,7 +78,8 @@ body::before {
 .demo-panel,
 .question-panel,
 .answer-panel,
-.dashboard-panel {
+.dashboard-panel,
+.config-panel {
   padding: 22px;
 }
 
@@ -202,6 +203,15 @@ h3 {
   padding: 12px 16px;
   color: var(--text);
   background: linear-gradient(135deg, rgba(86, 195, 171, 0.35), rgba(86, 195, 171, 0.16));
+}
+
+.danger-button {
+  color: #ffd7cf;
+}
+
+.inline-button {
+  min-width: 72px;
+  padding: 0 14px;
 }
 
 .ghost-button:hover,
@@ -368,10 +378,6 @@ h3 {
   margin-top: 6px;
 }
 
-.config-panel {
-  padding: 22px;
-}
-
 .provider-form {
   margin-top: 16px;
   display: grid;
@@ -395,6 +401,12 @@ h3 {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
+  gap: 10px;
+}
+
+.secret-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
 }
 
@@ -592,6 +604,10 @@ textarea:focus {
   color: var(--accent);
 }
 
+a {
+  color: #ffe0b8;
+}
+
 @media (max-width: 1180px) {
   .summary-grid,
   .deep-grid {
@@ -610,10 +626,7 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
-  .qa-form {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
+  .qa-form,
   .provider-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -630,7 +643,8 @@ textarea:focus {
   .demo-panel,
   .question-panel,
   .answer-panel,
-  .dashboard-panel {
+  .dashboard-panel,
+  .config-panel {
     padding: 18px;
   }
 
@@ -647,5 +661,9 @@ textarea:focus {
 
   .provider-key-field {
     grid-column: auto;
+  }
+
+  .secret-field {
+    grid-template-columns: 1fr;
   }
 }

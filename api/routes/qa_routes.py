@@ -1,23 +1,30 @@
-# 问答路由
+import logging
+from typing import Any, Dict, List, Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
+
 from accessibility.elderly_support.step_guide import StepGuide
 from core.rag_engine import RAGEngine
+from utils.security import redact_sensitive_text
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
+
 
 class QuestionRequest(BaseModel):
     question: str = Field(..., description="用户问题")
-    game_id: str = Field(..., description="游戏ID")
-    user_context: Optional[Dict[str, Any]] = Field(default=None, description="用户上下文信息")
-    top_k: int = Field(default=5, ge=1, le=20, description="检索文档数量")
-    include_sources: bool = Field(default=True, description="是否返回来源信息")
-    include_assistive_guide: bool = Field(default=False, description="是否返回无障碍分步引导")
+    game_id: str = Field(..., description="游戏 ID")
+    user_context: Optional[Dict[str, Any]] = Field(default=None, description="用户上下文")
+    top_k: int = Field(default=5, ge=1, le=20, description="返回来源数量")
+    include_sources: bool = Field(default=True, description="是否返回来源")
+    include_assistive_guide: bool = Field(default=False, description="是否返回分步引导")
+
 
 class SourceItem(BaseModel):
     source: str
     score: float
+
 
 class QuestionResponse(BaseModel):
     answer: str
@@ -28,7 +35,7 @@ class QuestionResponse(BaseModel):
 
 class AssistiveGuideRequest(BaseModel):
     question: str = Field(..., description="任务或问题描述")
-    game_id: str = Field(..., description="游戏ID")
+    game_id: str = Field(..., description="游戏 ID")
     user_context: Dict[str, Any] = Field(default_factory=dict, description="用户上下文")
     difficulty_level: str = Field(default="beginner", description="beginner/intermediate/advanced")
 
@@ -38,14 +45,14 @@ class AssistiveGuideResponse(BaseModel):
     difficulty_level: str
     metadata: Dict[str, Any]
 
+
 @router.get("/ping")
 async def ping():
-    """健康检查"""
     return {"status": "ok"}
+
 
 @router.post("/ask", response_model=QuestionResponse)
 async def ask_question(request: QuestionRequest):
-    """问答接口"""
     try:
         if not request.question.strip():
             raise HTTPException(status_code=400, detail="问题不能为空")
@@ -68,8 +75,8 @@ async def ask_question(request: QuestionRequest):
 
         sources: List[SourceItem] = []
         if request.include_sources:
-            for s in result.get("sources", [])[: request.top_k]:
-                sources.append(SourceItem(source=str(s), score=1.0))
+            for item in result.get("sources", [])[: request.top_k]:
+                sources.append(SourceItem(source=str(item), score=1.0))
 
         return QuestionResponse(
             answer=result.get("answer", ""),
@@ -79,17 +86,13 @@ async def ask_question(request: QuestionRequest):
         )
     except HTTPException:
         raise
-    except Exception as e:
-        import traceback
-        error_detail = f"问答处理失败: {str(e)}"
-        print(f"错误详情: {error_detail}")
-        print(f"错误堆栈: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=error_detail)
+    except Exception as exc:
+        logger.error("QA request failed: %s", redact_sensitive_text(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail="问答处理失败")
 
 
 @router.post("/assistive-guide", response_model=AssistiveGuideResponse)
 async def generate_assistive_guide(request: AssistiveGuideRequest):
-    """生成老年友好的分步引导。"""
     try:
         guide = StepGuide(request.game_id)
         steps = await guide.generate_guide(
@@ -105,5 +108,6 @@ async def generate_assistive_guide(request: AssistiveGuideRequest):
                 "user_type": request.user_context.get("user_type", "normal"),
             },
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"分步引导生成失败: {e}")
+    except Exception as exc:
+        logger.error("Assistive guide generation failed: %s", redact_sensitive_text(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail="分步引导生成失败")

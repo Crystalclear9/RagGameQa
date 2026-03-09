@@ -20,7 +20,10 @@ class Settings:
     API_HOST: str = os.getenv("API_HOST", "0.0.0.0")
     API_PORT: int = int(os.getenv("API_PORT", "8000"))
     CORS_ALLOW_ORIGINS: List[str] = (
-        os.getenv("CORS_ALLOW_ORIGINS", "*").split(",")
+        os.getenv(
+            "CORS_ALLOW_ORIGINS",
+            "http://localhost:8000,http://127.0.0.1:8000",
+        ).split(",")
     )
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "info")
 
@@ -30,9 +33,10 @@ class Settings:
     # Claude配置
     CLAUDE_API_KEY: str = os.getenv("CLAUDE_API_KEY", "")
     CLAUDE_API_BASE: str = os.getenv("CLAUDE_API_BASE", "https://api.anthropic.com")
-    CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", "claude-3-5-sonnet-20241022")
+    CLAUDE_MODEL: str = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
     CLAUDE_MAX_TOKENS: int = int(os.getenv("CLAUDE_MAX_TOKENS", "2000"))
     CLAUDE_TEMPERATURE: float = float(os.getenv("CLAUDE_TEMPERATURE", "0.7"))
+    CLAUDE_API_VERSION: str = os.getenv("CLAUDE_API_VERSION", "2023-06-01")
 
     # Gemini配置
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
@@ -45,7 +49,8 @@ class Settings:
     GEMINI_TEMPERATURE: float = float(os.getenv("GEMINI_TEMPERATURE", "0.7"))
     
     # 模型配置（保持向后兼容）
-    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "claude-3-5-sonnet-20241022")
+    DEFAULT_MODEL: str = os.getenv("DEFAULT_MODEL", "claude-sonnet-4-6")
+    RUNTIME_STORAGE_MODE: str = os.getenv("RUNTIME_STORAGE_MODE", "session")
     EMBEDDING_MODEL: str = os.getenv(
         "EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
     )

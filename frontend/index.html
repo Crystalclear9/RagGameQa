@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HUST 项目展示台 | RAG 游戏问答智能体</title>
+  <meta http-equiv="Cache-Control" content="no-store">
+  <title>HUST 项目展示台 | 游戏问答智能体</title>
   <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body>
@@ -12,9 +13,7 @@
       <div class="hero-copy-block">
         <p class="eyebrow">HUST Innovation Training Program</p>
         <h1 id="heroTitle">基于检索增强生成的游戏类问答智能体</h1>
-        <p id="heroSubtitle" class="hero-copy">
-          项目展示数据加载中。
-        </p>
+        <p id="heroSubtitle" class="hero-copy">正在加载项目概览与系统状态...</p>
         <div id="heroChips" class="chip-row"></div>
       </div>
       <div class="hero-actions">
@@ -35,7 +34,7 @@
 
       <article class="panel card">
         <div class="panel-header">
-          <h2>经费情况</h2>
+          <h2>经费使用</h2>
           <span id="fundingChip" class="metric-chip">加载中</span>
         </div>
         <div class="progress-block">
@@ -91,8 +90,8 @@
 
       <article class="panel card">
         <div class="panel-header">
-          <h2>后续计划</h2>
-          <span class="metric-chip">下一阶段</span>
+          <h2>下一阶段计划</h2>
+          <span class="metric-chip">后续</span>
         </div>
         <ul id="planList" class="simple-list"></ul>
       </article>
@@ -101,16 +100,16 @@
     <section class="deep-grid">
       <article class="panel card">
         <div class="panel-header">
-          <h2>创新特色</h2>
-          <span class="metric-chip">核心亮点</span>
+          <h2>创新点</h2>
+          <span class="metric-chip">项目亮点</span>
         </div>
         <ul id="innovationList" class="simple-list"></ul>
       </article>
 
       <article class="panel card">
         <div class="panel-header">
-          <h2>项目成员</h2>
-          <span class="metric-chip">团队协作</span>
+          <h2>团队成员</h2>
+          <span class="metric-chip">协作分工</span>
         </div>
         <div id="teamGrid" class="member-grid"></div>
       </article>
@@ -135,11 +134,11 @@
     <section class="panel demo-panel">
       <div class="panel-header">
         <h2>答辩示例场景</h2>
-        <span class="metric-chip">一键填充 / 批量运行</span>
+        <span class="metric-chip">一键填充 / 批量演示</span>
       </div>
       <div id="demoScenarioButtons" class="scenario-row"></div>
       <div id="batchDemoResults" class="batch-results">
-        <p class="subtle">点击上方场景将问题填入问答区，或使用右上角“运行答辩示例”批量展示结果。</p>
+        <p class="subtle">点击上方场景可自动填入问答区，也可以使用“运行答辩示例”批量演示。</p>
       </div>
     </section>
 
@@ -149,7 +148,7 @@
         <span id="providerStatusBadge" class="metric-chip">读取中</span>
       </div>
       <p class="subtle">
-        用户可以直接在图形界面里输入 API Key 并启用模型，不需要手动编辑 `.env`。如果勾选“写回 .env”，下次启动也会保留。
+        这里支持直接在图形界面中输入 API Key。默认只保存在当前会话，不落盘；如需下次自动恢复，推荐使用“本机安全存储”。
       </p>
       <form id="providerForm" class="provider-form">
         <label>
@@ -162,25 +161,40 @@
         </label>
 
         <label>
-          模型名
-          <input id="providerModel" type="text" placeholder="例如 gemini-2.5-flash">
+          模型名称
+          <input id="providerModel" list="modelSuggestionList" type="text" placeholder="例如 gemini-2.5-flash">
+          <datalist id="modelSuggestionList"></datalist>
+        </label>
+
+        <label>
+          保存方式
+          <select id="storageMode">
+            <option value="session">仅当前会话</option>
+            <option value="secure_local">本机安全存储（推荐）</option>
+            <option value="env">写入 .env（仅开发调试）</option>
+          </select>
         </label>
 
         <label class="provider-key-field">
           API Key
-          <input id="providerApiKey" type="password" placeholder="在这里粘贴你的 API Key">
+          <div class="secret-field">
+            <input id="providerApiKey" type="password" placeholder="在这里粘贴 API Key">
+            <button id="toggleApiKeyVisibility" class="ghost-button inline-button" type="button">显示</button>
+          </div>
         </label>
 
         <label class="toggle">
-          <input id="persistProviderConfig" type="checkbox">
-          <span>写回 .env</span>
+          <input id="clearEnvOnRemove" type="checkbox">
+          <span>移除密钥时一并清理 .env</span>
         </label>
 
         <div class="provider-actions">
           <button id="saveProviderConfig" class="primary-button" type="submit">保存并启用</button>
           <button id="testProviderConfig" class="ghost-button" type="button">测试连接</button>
+          <button id="clearProviderConfig" class="text-button danger-button" type="button">清除已保存密钥</button>
         </div>
       </form>
+      <p id="providerHint" class="subtle"></p>
       <div id="providerSnapshot" class="meta-row"></div>
       <p id="providerMessage" class="feedback-message"></p>
     </section>
@@ -208,7 +222,7 @@
           用户类型
           <select id="userType">
             <option value="normal">普通用户</option>
-            <option value="elderly">老年用户</option>
+            <option value="elderly">老年玩家</option>
             <option value="visual_impairment">视障用户</option>
             <option value="hearing_impairment">听障用户</option>
           </select>
@@ -224,7 +238,7 @@
         </label>
 
         <label>
-          检索数量
+          来源数量
           <input id="topK" type="number" min="1" max="10" value="5">
         </label>
 
@@ -249,9 +263,7 @@
           <span id="confidenceChip" class="metric-chip">置信度 --</span>
         </div>
 
-        <div id="answerBox" class="answer-box">
-          回答会显示在这里。
-        </div>
+        <div id="answerBox" class="answer-box">回答会显示在这里。</div>
 
         <div class="meta-row" id="metaRow"></div>
 
@@ -265,20 +277,20 @@
         <section class="subpanel">
           <h3>无障碍分步引导</h3>
           <ol id="assistiveSteps" class="steps-list">
-            <li>勾选“返回分步引导”后提问，这里会出现面向辅助场景的操作步骤。</li>
+            <li>勾选“返回分步引导”后提问，这里会出现适合辅助场景的操作步骤。</li>
           </ol>
         </section>
 
         <section class="subpanel feedback-panel">
           <h3>反馈闭环</h3>
-          <p class="subtle">每次反馈都会写入本地数据库或自动回退数据库，用于趋势分析和优先级报告。</p>
+          <p class="subtle">每次反馈都会进入本地分析链路，用于演示趋势统计和优先级报告。</p>
           <div class="rating-row" id="ratingRow">
             <button type="button" class="rating-button" data-rating="5">很有帮助</button>
             <button type="button" class="rating-button" data-rating="4">基本可用</button>
             <button type="button" class="rating-button" data-rating="2">结果欠佳</button>
             <button type="button" class="rating-button" data-rating="1">明显错误</button>
           </div>
-          <textarea id="feedbackComment" rows="3" placeholder="补充说明：哪里答得好，哪里需要改进？"></textarea>
+          <textarea id="feedbackComment" rows="3" placeholder="可以补充说明哪里答得好，哪里还需要改进。"></textarea>
           <button id="submitFeedback" class="secondary-button" type="button">提交反馈</button>
           <p id="feedbackMessage" class="feedback-message"></p>
         </section>
@@ -310,7 +322,7 @@
         </div>
 
         <section class="subpanel">
-          <h3>最近 7 天查询趋势</h3>
+          <h3>近 7 天查询趋势</h3>
           <div id="trendBars" class="trend-bars"></div>
         </section>
 

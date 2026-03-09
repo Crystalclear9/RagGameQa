@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config.database import QueryLog, SessionLocal, ensure_game_record
+from utils.security import redact_sensitive_text, sanitize_user_context
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class RAGEngine:
         use_memory_mode = data_file.exists()
         
         if use_memory_mode:
-            logger.info(f"使用内存模式 for {game_id}")
+            logger.info("Using memory mode for %s", game_id)
             from core.retriever.simple_memory_retriever import SimpleMemoryRetriever
             from core.generator.memory_llm_generator import MemoryLLMGenerator
             
@@ -28,7 +29,7 @@ class RAGEngine:
             self.generator = MemoryLLMGenerator(game_id)
             self.knowledge_base = None  # 内存模式不需要知识库管理器
         else:
-            logger.info(f"使用数据库模式 for {game_id}")
+            logger.info("Using database mode for %s", game_id)
             from core.generator.llm_generator import LLMGenerator
             from core.knowledge_base.kb_manager import KnowledgeBaseManager
             from core.retriever.hybrid_retriever import HybridRetriever
@@ -49,10 +50,8 @@ class RAGEngine:
             包含答案和相关信息的字典
         """
         t0 = time.time()
-        # 1. 检索相关文档
         retrieved_docs = await self.retriever.retrieve(question)
 
-        # 2. 生成答案
         answer = await self.generator.generate(
             question=question,
             context_docs=retrieved_docs,
@@ -61,11 +60,9 @@ class RAGEngine:
 
         processing_time = time.time() - t0
 
-        # 3. 计算置信度与来源
         confidence = self._calculate_confidence(answer, retrieved_docs)
         sources = self._extract_sources(retrieved_docs)
 
-        # 4. 记录查询日志（内存检索模式下也保留反馈闭环能力）
         query_log_id = await self._log_query(
             question=question,
             answer=answer,
@@ -102,15 +99,18 @@ class RAGEngine:
         try:
             db = SessionLocal()
             ensure_game_record(db, self.game_id)
+            safe_question = redact_sensitive_text(question)
+            safe_answer = redact_sensitive_text(answer)
+            safe_user_context = sanitize_user_context(user_context or {})
             log = QueryLog(
                 game_id=self.game_id,
-                user_id=(user_context or {}).get("user_id", "anonymous"),
-                question=question,
-                answer=answer,
+                user_id=safe_user_context.get("user_id", "anonymous"),
+                question=safe_question,
+                answer=safe_answer,
                 confidence=confidence,
                 processing_time=processing_time,
                 retrieved_docs_count=len(docs),
-                user_context=str(user_context or {}),
+                user_context=str(safe_user_context),
             )
             db.add(log)
             db.commit()
@@ -119,7 +119,7 @@ class RAGEngine:
         except Exception as e:
             if db is not None:
                 db.rollback()
-            logger.warning(f"记录查询日志失败: {e}")
+            logger.warning("Failed to write query log: %s", redact_sensitive_text(e))
             return None
         finally:
             if db is not None:

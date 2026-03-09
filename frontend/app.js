@@ -2,6 +2,7 @@ const state = {
   selectedRating: null,
   lastQueryLogId: null,
   overview: null,
+  providerCatalog: {},
 };
 
 const refs = {
@@ -32,12 +33,16 @@ const refs = {
   providerSelect: document.getElementById("providerSelect"),
   providerModel: document.getElementById("providerModel"),
   providerApiKey: document.getElementById("providerApiKey"),
-  persistProviderConfig: document.getElementById("persistProviderConfig"),
-  saveProviderConfig: document.getElementById("saveProviderConfig"),
+  storageMode: document.getElementById("storageMode"),
+  clearEnvOnRemove: document.getElementById("clearEnvOnRemove"),
+  toggleApiKeyVisibility: document.getElementById("toggleApiKeyVisibility"),
+  clearProviderConfig: document.getElementById("clearProviderConfig"),
   testProviderConfig: document.getElementById("testProviderConfig"),
   providerStatusBadge: document.getElementById("providerStatusBadge"),
   providerSnapshot: document.getElementById("providerSnapshot"),
   providerMessage: document.getElementById("providerMessage"),
+  providerHint: document.getElementById("providerHint"),
+  modelSuggestionList: document.getElementById("modelSuggestionList"),
   qaForm: document.getElementById("qaForm"),
   gameId: document.getElementById("gameId"),
   userType: document.getElementById("userType"),
@@ -64,6 +69,7 @@ const refs = {
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {}),
@@ -73,7 +79,7 @@ async function fetchJson(url, options = {}) {
 
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.detail || `请求失败: ${response.status}`);
+    throw new Error(payload.detail || payload.message || `请求失败：${response.status}`);
   }
 
   return response.json();
@@ -103,27 +109,15 @@ function renderHero(overview) {
   const info = overview.project_info || {};
   const runtime = overview.runtime_metrics || {};
   refs.heroTitle.textContent = info.project_name || "项目展示台";
-  refs.heroSubtitle.textContent = `${info.project_number || ""} · ${info.college || ""} · 负责人 ${info.leader || ""}。当前页面整合了中期检查信息、申报书亮点、系统演示与实时数据，用于课程汇报和答辩展示。`;
+  refs.heroSubtitle.textContent = `${info.project_number || ""} · ${info.college || ""} · 负责人 ${info.leader || ""}。当前页面整合了中期检查、申报书亮点、系统演示与实时数据，可用于答辩展示与功能演示。`;
   refs.heroChips.innerHTML = [
     `项目编号 ${info.project_number || "--"}`,
     `负责人 ${info.leader || "--"}`,
     `指导老师 ${info.advisor || "--"}`,
-    `模型 ${runtime.ai_provider || "mock"}`,
+    `Provider ${runtime.ai_provider || "mock"}`,
     `总查询 ${runtime.total_queries ?? 0}`,
     `总反馈 ${runtime.total_feedback ?? 0}`,
   ].map((item) => `<span class="chip">${escapeHtml(item)}</span>`).join("");
-}
-
-function renderProviderSnapshot(snapshot) {
-  refs.providerStatusBadge.textContent = `${snapshot.provider} ${snapshot.live_llm_enabled ? "已启用" : "待配置"}`;
-  refs.providerSelect.value = snapshot.provider || "mock";
-  refs.providerModel.value = snapshot.model || "";
-  refs.providerApiKey.value = "";
-  refs.providerSnapshot.innerHTML = [
-    `Provider ${snapshot.provider || "mock"}`,
-    `模型 ${snapshot.model || "--"}`,
-    snapshot.api_key_configured ? `已配置密钥 ${snapshot.api_key_masked || ""}` : "未配置密钥",
-  ].map((item) => `<span class="meta-pill">${escapeHtml(item)}</span>`).join("");
 }
 
 function renderProjectMeta(overview) {
@@ -164,14 +158,19 @@ function renderFunding(overview) {
 function renderRuntime(overview) {
   const runtime = overview.runtime_metrics || {};
   const database = runtime.database || {};
-  refs.databaseBadge.textContent = database.using_fallback ? "SQLite 回退模式" : "已连接配置数据库";
+  refs.databaseBadge.textContent = database.using_fallback ? "SQLite 回退模式" : "数据库已连接";
   refs.databaseBadge.className = `status-badge ${database.using_fallback ? "alert-chip" : "success-chip"}`;
+
   const entries = [
     ["总查询量", runtime.total_queries ?? 0, "运行期累计"],
     ["总反馈量", runtime.total_feedback ?? 0, "闭环数据"],
     ["平均置信度", runtime.average_confidence ?? 0, "问答输出"],
     ["平均耗时", `${runtime.average_processing_time ?? 0}s`, "接口处理"],
-    ["当前模型", runtime.ai_provider ?? "mock", runtime.live_llm_enabled ? "真实外部模型已启用" : "当前为回退或本地模式"],
+    [
+      "当前模型",
+      runtime.ai_provider ?? "mock",
+      runtime.live_llm_enabled ? "真实外部模型已启用" : "当前为本地演示或回退模式",
+    ],
   ];
   refs.runtimeCards.innerHTML = entries
     .map(
@@ -278,7 +277,8 @@ function renderMeta(metadata = {}) {
   const entries = [
     ["耗时", metadata.processing_time ? `${metadata.processing_time}s` : "--"],
     ["检索文档", metadata.retrieved ?? "--"],
-    ["日志ID", metadata.query_log_id ?? "--"],
+    ["日志 ID", metadata.query_log_id ?? "--"],
+    ["Provider", metadata.ai_provider ?? "--"],
   ];
   refs.metaRow.innerHTML = entries
     .map(([label, value]) => `<span class="meta-pill">${escapeHtml(label)} ${escapeHtml(value)}</span>`)
@@ -286,28 +286,21 @@ function renderMeta(metadata = {}) {
 }
 
 function renderSources(sources = []) {
-  if (!sources.length) {
-    refs.sourcesList.innerHTML = "<li>暂无来源</li>";
-    return;
-  }
-  refs.sourcesList.innerHTML = sources
-    .map((item) => `<li>${escapeHtml(item.source)}</li>`)
-    .join("");
+  refs.sourcesList.innerHTML = sources.length
+    ? sources.map((item) => `<li>${escapeHtml(item.source)}</li>`).join("")
+    : "<li>暂无来源</li>";
 }
 
 function renderAssistiveGuide(steps = []) {
-  if (!steps.length) {
-    refs.assistiveSteps.innerHTML = "<li>本次未返回分步引导。</li>";
-    return;
-  }
-
-  refs.assistiveSteps.innerHTML = steps
-    .map((step, index) => {
-      const description = step.description || "请按提示操作";
-      const cue = step.visual_cue || "";
-      return `<li><span class="step-badge">${index + 1}</span>${escapeHtml(cue)} ${escapeHtml(description)}</li>`;
-    })
-    .join("");
+  refs.assistiveSteps.innerHTML = steps.length
+    ? steps
+        .map((step, index) => {
+          const description = step.description || "请按提示操作";
+          const cue = step.visual_cue || "";
+          return `<li><span class="step-badge">${index + 1}</span>${escapeHtml(cue)} ${escapeHtml(description)}</li>`;
+        })
+        .join("")
+    : "<li>本次未返回分步引导。</li>";
 }
 
 function renderStats(stats) {
@@ -371,11 +364,12 @@ function renderPriority(items = []) {
 
 function renderBatchDemoResults(results = [], loading = false) {
   if (loading) {
-    refs.batchDemoResults.innerHTML = "<p class='subtle'>正在运行答辩示例，请稍候...</p>";
+    refs.batchDemoResults.innerHTML = "<p class='subtle'>正在运行批量演示，请稍候...</p>";
     return;
   }
+
   if (!results.length) {
-    refs.batchDemoResults.innerHTML = "<p class='subtle'>点击右上角“运行答辩示例”后，这里会显示批量演示结果。</p>";
+    refs.batchDemoResults.innerHTML = "<p class='subtle'>运行批量演示后，这里会显示各问题的回答结果。</p>";
     return;
   }
 
@@ -393,6 +387,57 @@ function renderBatchDemoResults(results = [], loading = false) {
     .join("");
 }
 
+function getProviderCatalog(provider) {
+  return state.providerCatalog[provider] || {
+    recommended: "",
+    latest_verified_at: "",
+    source_url: "",
+    models: [],
+  };
+}
+
+function renderModelSuggestions(provider) {
+  const catalog = getProviderCatalog(provider);
+  refs.modelSuggestionList.innerHTML = (catalog.models || [])
+    .map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.label || item.id)}</option>`)
+    .join("");
+  const sourceLink = catalog.source_url
+    ? `<a href="${escapeHtml(catalog.source_url)}" target="_blank" rel="noreferrer">官方模型文档</a>`
+    : "";
+  refs.providerHint.innerHTML = provider === "mock"
+    ? "mock 模式不需要 API Key，适合本地答辩演示和接口联调。"
+    : `推荐模型：<strong>${escapeHtml(catalog.recommended || "")}</strong>。最新校验日期：${escapeHtml(catalog.latest_verified_at || "--")}。${sourceLink}`;
+}
+
+function storageModeLabel(mode) {
+  if (mode === "secure_local") {
+    return "本机安全存储";
+  }
+  if (mode === "env") {
+    return ".env 调试模式";
+  }
+  return "当前会话";
+}
+
+function renderProviderSnapshot(snapshot) {
+  state.providerCatalog = snapshot.provider_catalog || {};
+  refs.providerStatusBadge.textContent = `${snapshot.provider} · ${snapshot.live_llm_enabled ? "已启用" : "待配置"} · ${storageModeLabel(snapshot.storage_mode)}`;
+  refs.providerSelect.value = snapshot.provider || "mock";
+  refs.providerModel.value = snapshot.model || "";
+  refs.providerApiKey.value = "";
+  refs.storageMode.value = snapshot.secure_storage_supported ? snapshot.storage_mode || "session" : "session";
+  renderModelSuggestions(refs.providerSelect.value);
+
+  const secureHint = snapshot.secure_storage_supported ? "可用" : "当前系统不支持";
+  refs.providerSnapshot.innerHTML = [
+    `Provider ${snapshot.provider || "mock"}`,
+    `模型 ${snapshot.model || "--"}`,
+    snapshot.api_key_configured ? `已配置密钥 ${snapshot.api_key_masked || ""}` : "未配置密钥",
+    `保存方式 ${storageModeLabel(snapshot.storage_mode)}`,
+    `安全存储 ${secureHint}`,
+  ].map((item) => `<span class="meta-pill">${escapeHtml(item)}</span>`).join("");
+}
+
 async function loadOverview() {
   const overview = await fetchJson("/api/v1/project/overview");
   state.overview = overview;
@@ -405,7 +450,7 @@ async function loadOverview() {
   renderList(refs.resultsList, overview.phased_results, "暂无阶段成果");
   renderList(refs.issuesList, overview.current_issues, "暂无问题记录");
   renderList(refs.planList, overview.next_plan, "暂无后续计划");
-  renderList(refs.innovationList, overview.innovations, "暂无创新描述");
+  renderList(refs.innovationList, overview.innovations, "暂无创新点描述");
   renderTeam(overview);
   renderProposalHighlights(overview);
   renderCoverage(overview);
@@ -489,7 +534,7 @@ async function submitQuestion(event) {
 
 async function submitFeedback() {
   if (!state.selectedRating) {
-    refs.feedbackMessage.textContent = "请选择一个反馈等级。";
+    refs.feedbackMessage.textContent = "请先选择反馈等级。";
     return;
   }
 
@@ -551,7 +596,7 @@ async function saveProviderConfig(event) {
       provider: refs.providerSelect.value,
       model: refs.providerModel.value.trim() || null,
       api_key: refs.providerApiKey.value.trim() || null,
-      persist_to_env: refs.persistProviderConfig.checked,
+      storage_mode: refs.storageMode.value,
     };
     const snapshot = await fetchJson("/api/v1/runtime/provider-config", {
       method: "POST",
@@ -559,8 +604,8 @@ async function saveProviderConfig(event) {
     });
     renderProviderSnapshot(snapshot);
     refs.providerMessage.textContent = snapshot.persisted
-      ? "配置已保存并写回 .env。"
-      : "配置已保存到当前运行会话。";
+      ? `配置已保存到${storageModeLabel(snapshot.storage_mode)}。`
+      : "配置已保存到当前会话，不会写入磁盘。";
     await syncProjectView();
   } catch (error) {
     refs.providerMessage.textContent = `保存失败：${error.message}`;
@@ -587,6 +632,26 @@ async function testProviderConfig() {
   }
 }
 
+async function clearProviderConfig() {
+  refs.providerMessage.textContent = "正在清除已保存密钥...";
+  try {
+    const payload = {
+      provider: refs.providerSelect.value,
+      clear_env: refs.clearEnvOnRemove.checked,
+    };
+    const snapshot = await fetchJson("/api/v1/runtime/provider-config/clear", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    renderProviderSnapshot(snapshot);
+    refs.providerApiKey.value = "";
+    refs.providerMessage.textContent = "已移除保存的密钥，当前已回退到安全状态。";
+    await syncProjectView();
+  } catch (error) {
+    refs.providerMessage.textContent = `清除失败：${error.message}`;
+  }
+}
+
 function bindRatingButtons() {
   const buttons = refs.ratingRow.querySelectorAll(".rating-button");
   buttons.forEach((button) => {
@@ -598,6 +663,29 @@ function bindRatingButtons() {
   });
 }
 
+function bindProviderInteractions() {
+  refs.providerSelect.addEventListener("change", () => {
+    const provider = refs.providerSelect.value;
+    renderModelSuggestions(provider);
+    const catalog = getProviderCatalog(provider);
+    if (!refs.providerModel.value.trim() && catalog.recommended) {
+      refs.providerModel.value = catalog.recommended;
+    }
+  });
+
+  refs.storageMode.addEventListener("change", () => {
+    if (refs.storageMode.value === "env") {
+      refs.providerMessage.textContent = "提示：.env 属于开发调试模式，安全性低于本机安全存储。";
+    }
+  });
+
+  refs.toggleApiKeyVisibility.addEventListener("click", () => {
+    const showing = refs.providerApiKey.type === "text";
+    refs.providerApiKey.type = showing ? "password" : "text";
+    refs.toggleApiKeyVisibility.textContent = showing ? "显示" : "隐藏";
+  });
+}
+
 refs.qaForm.addEventListener("submit", submitQuestion);
 refs.providerForm.addEventListener("submit", saveProviderConfig);
 refs.submitFeedback.addEventListener("click", submitFeedback);
@@ -605,8 +693,11 @@ refs.refreshDashboard.addEventListener("click", refreshDashboard);
 refs.gameId.addEventListener("change", refreshDashboard);
 refs.runBatchDemo.addEventListener("click", runBatchDemo);
 refs.testProviderConfig.addEventListener("click", testProviderConfig);
+refs.clearProviderConfig.addEventListener("click", clearProviderConfig);
 
 bindRatingButtons();
+bindProviderInteractions();
+
 syncProjectView().catch((error) => {
   refs.heroSubtitle.textContent = `项目展示数据加载失败：${error.message}`;
   refs.batchDemoResults.innerHTML = `<p class="subtle">初始化失败：${escapeHtml(error.message)}</p>`;
