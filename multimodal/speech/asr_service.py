@@ -1,4 +1,6 @@
 # 语音识别服务
+import io
+import wave
 from typing import Dict, Any, Optional
 import logging
 
@@ -20,7 +22,7 @@ class ASRService:
     
     def __init__(self, game_id: str):
         self.game_id = game_id
-        self.recognizer = sr.Recognizer()
+        self.recognizer = sr.Recognizer() if HAS_SPEECH_RECOGNITION else None
         self.dialect_recognizer = DialectRecognizer()
         self.noise_suppressor = NoiseSuppression()
         logger.info(f"ASR服务初始化完成: {game_id}")
@@ -37,11 +39,22 @@ class ASRService:
             识别结果
         """
         try:
+            if self.recognizer is None:
+                return {
+                    'text': '',
+                    'confidence': 0.0,
+                    'language': language,
+                    'dialect': 'unsupported',
+                    'dialect_confidence': 0.0,
+                    'duration': self._estimate_duration(audio_data),
+                    'error': 'speech_recognition 依赖未安装'
+                }
+
             # 1. 噪声抑制
             cleaned_audio = await self.noise_suppressor.suppress_noise(audio_data)
             
             # 2. 基础语音识别
-            with sr.AudioFile(cleaned_audio) as source:
+            with sr.AudioFile(io.BytesIO(cleaned_audio)) as source:
                 audio = self.recognizer.record(source)
             
             # 3. 识别文本
@@ -55,7 +68,8 @@ class ASRService:
                 'confidence': 0.9,  # 模拟置信度
                 'language': language,
                 'dialect': dialect_info.get('dialect', 'standard'),
-                'dialect_confidence': dialect_info.get('confidence', 0.0)
+                'dialect_confidence': dialect_info.get('confidence', 0.0),
+                'duration': self._estimate_duration(cleaned_audio),
             }
             
             logger.info(f"语音识别完成: {text[:50]}...")
@@ -69,6 +83,7 @@ class ASRService:
                 'language': language,
                 'dialect': 'unknown',
                 'dialect_confidence': 0.0,
+                'duration': self._estimate_duration(audio_data),
                 'error': str(e)
             }
     
@@ -142,5 +157,16 @@ class ASRService:
             'game_id': self.game_id,
             'supported_languages': self.get_supported_languages(),
             'dialect_support': True,
-            'noise_suppression': True
+            'noise_suppression': True,
+            'speech_recognition': HAS_SPEECH_RECOGNITION,
         }
+
+    def _estimate_duration(self, audio_data: bytes) -> float:
+        """尽量从WAV数据估算时长，失败时返回0。"""
+        try:
+            with wave.open(io.BytesIO(audio_data), "rb") as wav_file:
+                frames = wav_file.getnframes()
+                rate = wav_file.getframerate()
+                return round(frames / float(rate), 2) if rate else 0.0
+        except Exception:
+            return 0.0

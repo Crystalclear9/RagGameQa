@@ -1,12 +1,10 @@
-# RAG引擎主类
-from typing import List, Dict, Any, Optional
+import os
 import time
 import logging
-import os
-from core.retriever.hybrid_retriever import HybridRetriever
-from core.generator.llm_generator import LLMGenerator
-from core.knowledge_base.kb_manager import KnowledgeBaseManager
-from config.database import SessionLocal, QueryLog
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from config.database import QueryLog, SessionLocal, ensure_game_record
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +16,8 @@ class RAGEngine:
         self.game_id = game_id
         
         # 检查是否使用内存模式
-        data_file = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'sample_data.json')
-        use_memory_mode = os.path.exists(data_file)
+        data_file = Path(__file__).resolve().parent.parent / "data" / "sample_data.json"
+        use_memory_mode = data_file.exists()
         
         if use_memory_mode:
             logger.info(f"使用内存模式 for {game_id}")
@@ -31,6 +29,10 @@ class RAGEngine:
             self.knowledge_base = None  # 内存模式不需要知识库管理器
         else:
             logger.info(f"使用数据库模式 for {game_id}")
+            from core.generator.llm_generator import LLMGenerator
+            from core.knowledge_base.kb_manager import KnowledgeBaseManager
+            from core.retriever.hybrid_retriever import HybridRetriever
+
             self.retriever = HybridRetriever(game_id)
             self.generator = LLMGenerator(game_id)
             self.knowledge_base = KnowledgeBaseManager(game_id)
@@ -63,16 +65,15 @@ class RAGEngine:
         confidence = self._calculate_confidence(answer, retrieved_docs)
         sources = self._extract_sources(retrieved_docs)
 
-        # 4. 记录查询日志（仅数据库模式）
-        if self.knowledge_base:
-            await self._log_query(
-                question=question,
-                answer=answer,
-                docs=retrieved_docs,
-                confidence=confidence,
-                processing_time=processing_time,
-                user_context=user_context or {},
-            )
+        # 4. 记录查询日志（内存检索模式下也保留反馈闭环能力）
+        query_log_id = await self._log_query(
+            question=question,
+            answer=answer,
+            docs=retrieved_docs,
+            confidence=confidence,
+            processing_time=processing_time,
+            user_context=user_context or {},
+        )
 
         return {
             "answer": answer,
@@ -82,6 +83,7 @@ class RAGEngine:
             "metadata": {
                 "processing_time": round(processing_time, 3),
                 "retrieved": len(retrieved_docs),
+                "query_log_id": query_log_id,
             },
         }
 
@@ -93,14 +95,12 @@ class RAGEngine:
         confidence: float = 0.0,
         processing_time: float = 0.0,
         user_context: Optional[Dict] = None,
-    ):
-        """记录查询日志到数据库（仅数据库模式）"""
-        if not self.knowledge_base:
-            return  # 内存模式不记录日志
-            
+    ) -> Optional[int]:
+        """记录查询日志到数据库。"""
         db = None
         try:
             db = SessionLocal()
+            ensure_game_record(db, self.game_id)
             log = QueryLog(
                 game_id=self.game_id,
                 user_id=(user_context or {}).get("user_id", "anonymous"),
@@ -113,10 +113,13 @@ class RAGEngine:
             )
             db.add(log)
             db.commit()
+            db.refresh(log)
+            return int(log.id)
         except Exception as e:
             if db is not None:
                 db.rollback()
             logger.warning(f"记录查询日志失败: {e}")
+            return None
         finally:
             if db is not None:
                 db.close()

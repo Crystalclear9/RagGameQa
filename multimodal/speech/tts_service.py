@@ -18,8 +18,9 @@ class TTSService:
     
     def __init__(self, game_id: str):
         self.game_id = game_id
-        self.engine = pyttsx3.init()
-        self._configure_engine()
+        self.engine = pyttsx3.init() if HAS_PYTTSX3 else None
+        if self.engine is not None:
+            self._configure_engine()
         logger.info(f"TTS服务初始化完成: {game_id}")
     
     def _configure_engine(self):
@@ -53,6 +54,17 @@ class TTSService:
             合成结果
         """
         try:
+            if self.engine is None:
+                return {
+                    'text': text,
+                    'success': True,
+                    'duration': len(text) * 0.1,
+                    'voice_settings': {
+                        'mode': 'text-fallback',
+                        'reason': 'pyttsx3 依赖未安装'
+                    }
+                }
+
             # 根据用户上下文调整语音参数
             if user_context:
                 self._adjust_for_user_context(user_context)
@@ -86,6 +98,8 @@ class TTSService:
     
     def _adjust_for_user_context(self, user_context: Dict[str, Any]):
         """根据用户上下文调整语音参数"""
+        if self.engine is None:
+            return
         user_type = user_context.get('user_type', 'normal')
         
         if user_type == 'elderly':
@@ -103,6 +117,12 @@ class TTSService:
     
     def _get_voice_settings(self) -> Dict[str, Any]:
         """获取当前语音设置"""
+        if self.engine is None:
+            return {
+                'rate': 0,
+                'volume': 0,
+                'voice': 'fallback'
+            }
         return {
             'rate': self.engine.getProperty('rate'),
             'volume': self.engine.getProperty('volume'),
@@ -144,6 +164,8 @@ class TTSService:
     def get_available_voices(self) -> list:
         """获取可用的语音列表"""
         try:
+            if self.engine is None:
+                return []
             voices = self.engine.getProperty('voices')
             return [
                 {

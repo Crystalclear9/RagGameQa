@@ -8,11 +8,13 @@ sys.path.insert(0, str(root_dir))
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 import time
 import logging
 from api.routes import qa_routes, analytics_routes
 from config.settings import settings
+from config.database import create_tables, database_status
 
 # 可选导入（如果模块不存在也不会报错）
 try:
@@ -40,6 +42,8 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+frontend_dir = root_dir / "frontend"
 
 # 添加CORS中间件
 app.add_middleware(
@@ -75,6 +79,13 @@ async def global_exception_handler(request: Request, exc: Exception):
         },
     )
 
+
+@app.on_event("startup")
+async def startup_event():
+    """初始化数据库等运行时资源。"""
+    create_tables()
+    logger.info("数据库初始化完成: %s", database_status())
+
 # 注册核心路由
 app.include_router(qa_routes.router, prefix="/api/v1/qa", tags=["问答"])
 app.include_router(analytics_routes.router, prefix="/api/v1/analytics", tags=["分析"])
@@ -88,20 +99,31 @@ if HAS_HEALTH and health_routes:
     app.include_router(health_routes.router, prefix="/api/v1/health", tags=["健康"])
     logger.info("已加载健康管理路由")
 
+if frontend_dir.exists():
+    app.mount("/assets", StaticFiles(directory=str(frontend_dir)), name="frontend-assets")
+
+    @app.get("/app", include_in_schema=False)
+    async def web_app():
+        return FileResponse(frontend_dir / "index.html")
+
 @app.get("/")
 async def root():
+    db_info = database_status()
     return {
         "message": "RAG Game QA System API",
         "version": settings.APP_VERSION,
         "status": "running",
         "docs": "/docs",
         "redoc": "/redoc",
+        "web_ui": "/app" if frontend_dir.exists() else None,
         "features": {
             "qa": True,
             "analytics": True,
             "multimodal": HAS_MULTIMODAL,
-            "health": HAS_HEALTH
-        }
+            "health": HAS_HEALTH,
+            "web_frontend": frontend_dir.exists(),
+        },
+        "database": db_info,
     }
 
 @app.get("/health")

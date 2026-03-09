@@ -33,9 +33,16 @@
     family_guide = await family_collab.generate_family_guide("怎么组队？", "详细答案...")
 """
 
-from .patience_model import PatienceModel
+try:
+    from .patience_model import PatienceModel
+except ImportError:
+    PatienceModel = None
+
 from .step_guide import StepGuide
-from .family_collaboration import FamilyCollaboration
+try:
+    from .family_collaboration import FamilyCollaboration
+except ImportError:
+    FamilyCollaboration = None
 
 __all__ = [
     "PatienceModel",

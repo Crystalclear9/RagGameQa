@@ -57,7 +57,7 @@
     visual_cues = await hearing_support.add_visual_cues(content)
 """
 
-from .elderly_support import PatienceModel, StepGuide, FamilyCollaboration
+from .elderly_support import FamilyCollaboration, PatienceModel, StepGuide
 
 # 导入其他无障碍支持模块（待实现）
 # from .visual_impairment import VisualSupport

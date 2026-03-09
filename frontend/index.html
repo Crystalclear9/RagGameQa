@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG 游戏问答工作台</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <main class="layout">
+    <section class="hero panel">
+      <div>
+        <p class="eyebrow">HUST Innovation Project</p>
+        <h1>RAG 游戏问答工作台</h1>
+        <p class="hero-copy">
+          面向普通用户、测试成员和指导老师的可视化入口。现在可以直接提问、查看来源、提交反馈，并观察最近的查询与问题优先级。
+        </p>
+      </div>
+      <div class="hero-actions">
+        <a class="ghost-button" href="/docs" target="_blank" rel="noreferrer">打开 Swagger</a>
+        <a class="ghost-button" href="/api/v1/multimodal/capabilities" target="_blank" rel="noreferrer">多模态能力</a>
+      </div>
+    </section>
+
+    <section class="question-panel panel">
+      <div class="panel-header">
+        <h2>智能问答</h2>
+        <span id="statusBadge" class="status-badge">待提问</span>
+      </div>
+
+      <form id="qaForm" class="qa-form">
+        <label>
+          游戏
+          <select id="gameId">
+            <option value="wow">魔兽世界</option>
+            <option value="lol">英雄联盟</option>
+            <option value="genshin">原神</option>
+            <option value="minecraft">我的世界</option>
+            <option value="valorant">无畏契约</option>
+            <option value="apex">Apex 英雄</option>
+          </select>
+        </label>
+
+        <label>
+          用户类型
+          <select id="userType">
+            <option value="normal">普通用户</option>
+            <option value="elderly">老年用户</option>
+            <option value="visual_impairment">视障用户</option>
+            <option value="hearing_impairment">听障用户</option>
+          </select>
+        </label>
+
+        <label>
+          引导难度
+          <select id="difficultyLevel">
+            <option value="beginner">beginner</option>
+            <option value="intermediate">intermediate</option>
+            <option value="advanced">advanced</option>
+          </select>
+        </label>
+
+        <label>
+          检索数量
+          <input id="topK" type="number" min="1" max="10" value="5">
+        </label>
+
+        <label class="toggle">
+          <input id="assistiveGuide" type="checkbox">
+          <span>返回分步引导</span>
+        </label>
+
+        <label class="question-field">
+          你的问题
+          <textarea id="questionInput" rows="5" placeholder="例如：原神里怎么高效触发蒸发反应？"></textarea>
+        </label>
+
+        <button class="primary-button" type="submit">开始提问</button>
+      </form>
+    </section>
+
+    <section class="content-grid">
+      <article class="panel answer-panel">
+        <div class="panel-header">
+          <h2>回答结果</h2>
+          <span id="confidenceChip" class="metric-chip">置信度 --</span>
+        </div>
+
+        <div id="answerBox" class="answer-box">
+          回答会显示在这里。
+        </div>
+
+        <div class="meta-row" id="metaRow"></div>
+
+        <section class="subpanel">
+          <h3>来源文档</h3>
+          <ul id="sourcesList" class="simple-list">
+            <li>暂无来源</li>
+          </ul>
+        </section>
+
+        <section class="subpanel">
+          <h3>无障碍分步引导</h3>
+          <ol id="assistiveSteps" class="steps-list">
+            <li>勾选“返回分步引导”后提问，这里会出现面向辅助场景的操作步骤。</li>
+          </ol>
+        </section>
+
+        <section class="subpanel feedback-panel">
+          <h3>反馈闭环</h3>
+          <p class="subtle">每次反馈都会写入本地数据库或自动回退数据库，用于趋势分析和优先级报告。</p>
+          <div class="rating-row" id="ratingRow">
+            <button type="button" class="rating-button" data-rating="5">很有帮助</button>
+            <button type="button" class="rating-button" data-rating="4">基本可用</button>
+            <button type="button" class="rating-button" data-rating="2">结果欠佳</button>
+            <button type="button" class="rating-button" data-rating="1">明显错误</button>
+          </div>
+          <textarea id="feedbackComment" rows="3" placeholder="补充说明：哪里答得好，哪里需要改进？"></textarea>
+          <button id="submitFeedback" class="secondary-button" type="button">提交反馈</button>
+          <p id="feedbackMessage" class="feedback-message"></p>
+        </section>
+      </article>
+
+      <aside class="panel dashboard-panel">
+        <div class="panel-header">
+          <h2>项目看板</h2>
+          <button id="refreshDashboard" class="text-button" type="button">刷新</button>
+        </div>
+
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-card">
+            <span>近 7 天查询</span>
+            <strong>0</strong>
+          </div>
+          <div class="stat-card">
+            <span>平均置信度</span>
+            <strong>0.000</strong>
+          </div>
+          <div class="stat-card">
+            <span>平均耗时</span>
+            <strong>0.000s</strong>
+          </div>
+          <div class="stat-card">
+            <span>累计反馈</span>
+            <strong>0</strong>
+          </div>
+        </div>
+
+        <section class="subpanel">
+          <h3>最近 7 天查询趋势</h3>
+          <div id="trendBars" class="trend-bars"></div>
+        </section>
+
+        <section class="subpanel">
+          <h3>高频问题</h3>
+          <ul id="topQuestions" class="simple-list">
+            <li>暂无数据</li>
+          </ul>
+        </section>
+
+        <section class="subpanel">
+          <h3>优先级报告</h3>
+          <ul id="priorityList" class="priority-list">
+            <li>暂无反馈数据</li>
+          </ul>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>

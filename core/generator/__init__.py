@@ -1,17 +1,6 @@
 # 生成模块
-"""
-生成模块
+"""仅导出轻量生成器，避免导入阶段触发外部LLM依赖。"""
 
-实现大语言模型生成、领域适配和响应格式化。
-支持多游戏领域的知识生成。
-"""
+from .memory_llm_generator import MemoryLLMGenerator
 
-from .llm_generator import LLMGenerator
-from .domain_adapter import DomainAdapter
-from .response_formatter import ResponseFormatter
-
-__all__ = [
-    "LLMGenerator",
-    "DomainAdapter",
-    "ResponseFormatter"
-]
+__all__ = ["MemoryLLMGenerator"]

@@ -126,6 +126,56 @@ def test_with_client():
         print(f"  空问题状态码: {response.status_code}")
         assert response.status_code == 400, "应该返回400错误"
         print("  ✅ 通过")
+
+        # 测试8: Web前端入口
+        print("\n[测试8] GET /app")
+        response = client.get("/app")
+        print(f"  状态码: {response.status_code}")
+        assert response.status_code == 200, "Web前端入口测试失败"
+        print("  ✅ 通过")
+
+        # 测试9: 反馈闭环
+        print("\n[测试9] POST /api/v1/analytics/feedback")
+        response = client.post("/api/v1/analytics/feedback", json={
+            "game_id": "wow",
+            "user_id": "test_user",
+            "rating": 4,
+            "comment": "这个回答对我有帮助"
+        })
+        print(f"  状态码: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"  反馈ID: {data.get('id')}")
+            print("  ✅ 通过")
+        else:
+            print(f"  ❌ 失败: {response.text}")
+
+        # 测试10: 查询统计
+        print("\n[测试10] GET /api/v1/analytics/query-stats")
+        response = client.get("/api/v1/analytics/query-stats", params={
+            "game_id": "wow",
+            "days": 7
+        })
+        print(f"  状态码: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"  查询数: {data.get('total_queries')}")
+            print("  ✅ 通过")
+        else:
+            print(f"  ❌ 失败: {response.text}")
+
+        # 测试11: 多模态能力接口
+        print("\n[测试11] GET /api/v1/multimodal/capabilities")
+        response = client.get("/api/v1/multimodal/capabilities", params={
+            "game_id": "wow"
+        })
+        print(f"  状态码: {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"  触觉模式数: {len(data.get('haptic_patterns', []))}")
+            print("  ✅ 通过")
+        else:
+            print(f"  ❌ 失败: {response.text}")
         
         return True
         
@@ -160,7 +210,7 @@ def test_with_requests():
         except requests.exceptions.ConnectionError:
             print("  ❌ 服务未运行")
             print("  请先启动服务: python run_server.py")
-            return False
+            return None
         
         # 测试问答
         print("\n[测试] POST /api/v1/qa/ask")
