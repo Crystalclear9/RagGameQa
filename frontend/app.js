@@ -24,6 +24,11 @@ const refs = {
   pythonConfigPath: document.getElementById("pythonConfigPath"),
   pythonConfigSteps: document.getElementById("pythonConfigSteps"),
   pythonConfigCode: document.getElementById("pythonConfigCode"),
+  syncStatusChip: document.getElementById("syncStatusChip"),
+  syncStats: document.getElementById("syncStats"),
+  syncSelectedGame: document.getElementById("syncSelectedGame"),
+  refreshSyncStatus: document.getElementById("refreshSyncStatus"),
+  syncMessage: document.getElementById("syncMessage"),
   moduleAuditGrid: document.getElementById("moduleAuditGrid"),
   demoScenarioButtons: document.getElementById("demoScenarioButtons"),
   batchDemoResults: document.getElementById("batchDemoResults"),
@@ -33,6 +38,7 @@ const refs = {
   userType: document.getElementById("userType"),
   difficultyLevel: document.getElementById("difficultyLevel"),
   topK: document.getElementById("topK"),
+  enableWebRetrieval: document.getElementById("enableWebRetrieval"),
   assistiveGuide: document.getElementById("assistiveGuide"),
   familyMode: document.getElementById("familyMode"),
   questionInput: document.getElementById("questionInput"),
@@ -124,11 +130,15 @@ function renderOverviewCards(overview) {
 function renderRuntime(overview) {
   const runtime = overview.runtime_metrics || {};
   const database = runtime.database || {};
-  refs.databaseBadge.textContent = database.using_fallback ? "SQLite 回退模式" : "数据库已连接";
+  refs.databaseBadge.textContent = database.using_fallback
+    ? "SQLite 回退模式"
+    : (database.is_external ? "外部数据库已连接" : "数据库已连接");
   refs.databaseBadge.className = `status-badge ${database.using_fallback ? "alert-chip" : "success-chip"}`;
   const entries = [
     ["当前 Provider", runtime.ai_provider ?? "mock", runtime.live_llm_enabled ? "已启用真实大模型" : "当前为本地演示或回退模式"],
     ["当前模型", runtime.model ?? "--", "由 Python 配置文件或运行时配置决定"],
+    ["数据库后端", database.backend ?? "--", database.active_url || "未识别到连接串"],
+    ["联网检索", runtime.web_retrieval_enabled ? "enabled" : "disabled", `触发阈值 ${runtime.web_retrieval_trigger_doc_count ?? "--"} 条`],
     ["配置文件", runtime.python_config_file ?? "--", runtime.python_config_exists ? "本地 Python 配置文件存在" : "请按示例创建配置文件"],
     ["平均耗时", `${runtime.average_processing_time ?? 0}s`, "按最近查询统计"],
   ];
@@ -202,6 +212,38 @@ function renderPythonConfig(overview) {
   refs.pythonConfigPath.textContent = config.config_file || "config/local_provider_config.py";
   renderList(refs.pythonConfigSteps, config.instructions || [], "暂无说明");
   refs.pythonConfigCode.textContent = (config.sample_lines || []).join("\n");
+}
+
+function renderKnowledgeSync(overview) {
+  const sync = overview.knowledge_sync || {};
+  const games = sync.games || [];
+  refs.syncStatusChip.textContent = sync.total_synced_docs
+    ? `已同步 ${sync.total_synced_docs} 篇`
+    : "尚未落库";
+
+  const topGames = games
+    .slice(0, 3)
+    .map((item) => `${item.game_id} ${item.synced_docs} 篇`)
+    .join(" / ");
+
+  const entries = [
+    ["在线文档", sync.total_synced_docs ?? 0, "已经写入数据库的联网资料数量"],
+    ["最近同步", sync.last_sync_at ? sync.last_sync_at.replace("T", " ").slice(0, 19) : "--", "最后一次成功落库时间"],
+    ["覆盖游戏", games.length || 0, topGames || "还没有同步记录"],
+    ["默认来源", (sync.recent_sources || []).length ? "Wiki / Wikipedia" : "--", (sync.recent_sources || []).slice(0, 2).join(" | ") || "点击下方按钮开始同步"],
+  ];
+
+  refs.syncStats.innerHTML = entries
+    .map(
+      ([label, value, desc]) => `
+        <div class="mini-stat">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(value)}</strong>
+          <p>${escapeHtml(desc)}</p>
+        </div>
+      `,
+    )
+    .join("");
 }
 
 function renderAudit(audit) {
@@ -278,6 +320,8 @@ function renderMeta(metadata = {}) {
     ["检索文档", metadata.retrieved ?? "--"],
     ["日志 ID", metadata.query_log_id ?? "--"],
     ["Provider", metadata.ai_provider ?? "--"],
+    ["检索模式", metadata.retrieval_mode ?? "--"],
+    ["联网补充", metadata.web_augmented ? `是 (${metadata.web_docs || 0})` : "否"],
   ];
   refs.metaRow.innerHTML = entries
     .map(([label, value]) => `<span class="meta-pill">${escapeHtml(label)} ${escapeHtml(value)}</span>`)
@@ -412,6 +456,7 @@ async function loadOverview() {
   renderList(refs.implementedList, overview.implemented_modules || [], "暂无已实现模块");
   renderApiReference(overview);
   renderPythonConfig(overview);
+  renderKnowledgeSync(overview);
   renderDemoScenarios(overview);
 }
 
@@ -459,6 +504,7 @@ async function submitQuestion(event) {
       include_sources: true,
       include_assistive_guide: refs.assistiveGuide.checked,
       include_family_guide: refs.familyMode.checked,
+      enable_web_retrieval: refs.enableWebRetrieval.checked,
       user_context: {
         user_id: "web-user",
         user_type: refs.userType.value,
@@ -548,6 +594,24 @@ async function runBatchDemo() {
   }
 }
 
+async function runKnowledgeSync() {
+  const gameId = refs.gameId.value;
+  refs.syncMessage.textContent = `正在同步 ${gameId} 的在线资料...`;
+  try {
+    const result = await fetchJson("/api/v1/project/knowledge-sync", {
+      method: "POST",
+      body: JSON.stringify({
+        game_id: gameId,
+        max_results_per_query: 2,
+      }),
+    });
+    refs.syncMessage.textContent = `同步完成：新增 ${result.stored_new_docs || 0} 篇，跳过 ${result.skipped_existing_docs || 0} 篇重复内容。`;
+    await syncProjectView();
+  } catch (error) {
+    refs.syncMessage.textContent = `同步失败：${error.message}`;
+  }
+}
+
 function bindRatingButtons() {
   const buttons = refs.ratingRow.querySelectorAll(".rating-button");
   buttons.forEach((button) => {
@@ -564,6 +628,8 @@ refs.submitFeedback.addEventListener("click", submitFeedback);
 refs.refreshDashboard.addEventListener("click", refreshDashboard);
 refs.gameId.addEventListener("change", refreshDashboard);
 refs.runBatchDemo.addEventListener("click", runBatchDemo);
+refs.syncSelectedGame.addEventListener("click", runKnowledgeSync);
+refs.refreshSyncStatus.addEventListener("click", syncProjectView);
 
 bindRatingButtons();
 syncProjectView().catch((error) => {

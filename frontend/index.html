@@ -98,6 +98,20 @@
           <pre id="pythonConfigCode" class="code-block"></pre>
         </div>
       </article>
+
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>联网知识同步</h2>
+          <span id="syncStatusChip" class="metric-chip">读取中</span>
+        </div>
+        <p class="subtle">把在线资料写入数据库后，后续问答会优先命中本地知识库，不需要每次都临时联网。</p>
+        <div id="syncStats" class="mini-stats"></div>
+        <div class="hero-actions">
+          <button id="syncSelectedGame" class="secondary-button" type="button">同步当前游戏</button>
+          <button id="refreshSyncStatus" class="text-button" type="button">刷新状态</button>
+        </div>
+        <p id="syncMessage" class="feedback-message"></p>
+      </article>
     </section>
 
     <section class="panel">
@@ -160,6 +174,11 @@
         <label>
           来源数量
           <input id="topK" type="number" min="1" max="10" value="5">
+        </label>
+
+        <label class="toggle">
+          <input id="enableWebRetrieval" type="checkbox" checked>
+          <span>启用联网检索补充</span>
         </label>
 
         <label class="toggle">

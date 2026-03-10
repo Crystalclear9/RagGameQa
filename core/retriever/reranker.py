@@ -1,53 +1,72 @@
-# 重排序模型
-from typing import List, Dict, Any
-import torch
-from transformers import AutoTokenizer, AutoModel
+"""Reranker with optional BERT support."""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Dict, List
+
+from config.settings import settings
+
+try:
+    import torch
+    from transformers import AutoModel, AutoTokenizer
+except Exception:  # pragma: no cover - handled at runtime
+    torch = None  # type: ignore[assignment]
+    AutoModel = None  # type: ignore[assignment]
+    AutoTokenizer = None  # type: ignore[assignment]
+
+logger = logging.getLogger(__name__)
+
 
 class Reranker:
-    """重排序模型，优化检索结果的相关性排序"""
-    
+    """Improve retrieval order by semantic relevance."""
+
     def __init__(self, game_id: str):
         self.game_id = game_id
         self.model_name = "bert-base-chinese"
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        self.model = AutoModel.from_pretrained(self.model_name)
-    
+        self.available = False
+        self.tokenizer = None
+        self.model = None
+
+        if not settings.ENABLE_BERT_RERANKER:
+            logger.info("BERT reranker disabled by config (ENABLE_BERT_RERANKER=False)")
+            return
+
+        if AutoTokenizer is None or AutoModel is None or torch is None:
+            logger.warning("transformers/torch unavailable, reranker disabled")
+            return
+
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self.model = AutoModel.from_pretrained(self.model_name)
+            self.available = True
+        except Exception as exc:
+            logger.warning("Reranker model load failed, disabled: %s", exc)
+            self.available = False
+
     async def rerank(self, query: str, documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        重排序方法
-        
-        Args:
-            query: 查询文本
-            documents: 待排序的文档列表
-            
-        Returns:
-            重排序后的文档列表
-        """
         if not documents:
             return documents
-        
-        # 1. 计算查询-文档相关性分数
+        if not self.available:
+            for doc in documents:
+                doc["final_score"] = float(doc.get("final_score") or doc.get("score") or 0.0)
+            return sorted(documents, key=lambda x: x.get("final_score", 0.0), reverse=True)
+
         relevance_scores = []
         for doc in documents:
-            score = await self._calculate_relevance(query, doc['content'])
+            score = await self._calculate_relevance(query, str(doc.get("content", "")))
             relevance_scores.append(score)
-        
-        # 2. 结合原始分数和相关性分数
+
         for i, doc in enumerate(documents):
-            original_score = doc.get('score', 0)
-            relevance_score = relevance_scores[i]
-            # 加权融合
-            doc['final_score'] = 0.7 * original_score + 0.3 * relevance_score
-        
-        # 3. 按最终分数排序
-        reranked_docs = sorted(documents, key=lambda x: x['final_score'], reverse=True)
-        
-        return reranked_docs
-    
+            base_score = float(doc.get("final_score") or doc.get("score") or 0.0)
+            doc["final_score"] = 0.7 * base_score + 0.3 * relevance_scores[i]
+
+        return sorted(documents, key=lambda x: x["final_score"], reverse=True)
+
     async def _calculate_relevance(self, query: str, document: str) -> float:
-        """计算查询和文档的相关性分数（双塔CLS余弦）"""
+        if not self.available or self.tokenizer is None or self.model is None or torch is None:
+            return self._fallback_similarity(query, document)
         try:
-            # 分别编码查询与文档，取CLS
             q_inputs = self.tokenizer(
                 query,
                 return_tensors="pt",
@@ -62,24 +81,19 @@ class Reranker:
                 max_length=512,
                 padding=True,
             )
-
             with torch.no_grad():
                 q_out = self.model(**q_inputs).last_hidden_state[:, 0, :]
                 d_out = self.model(**d_inputs).last_hidden_state[:, 0, :]
                 similarity = torch.cosine_similarity(q_out, d_out, dim=1)
-                return similarity.item()
+                return float(similarity.item())
         except Exception:
             return self._fallback_similarity(query, document)
-    
+
     def _fallback_similarity(self, query: str, document: str) -> float:
-        """备用相似度计算方法"""
-        query_words = set(query.lower().split())
-        doc_words = set(document.lower().split())
-        
+        query_words = set(str(query or "").lower().split())
+        doc_words = set(str(document or "").lower().split())
         if not query_words or not doc_words:
             return 0.0
-        
-        intersection = len(query_words.intersection(doc_words))
+        overlap = len(query_words.intersection(doc_words))
         union = len(query_words.union(doc_words))
-        
-        return intersection / union if union > 0 else 0.0
+        return overlap / union if union > 0 else 0.0

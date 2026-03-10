@@ -175,9 +175,11 @@ async def root():
             "analytics": True,
             "project_showcase": True,
             "runtime_config": True,
+            "knowledge_sync": True,
             "multimodal": HAS_MULTIMODAL,
             "health": HAS_HEALTH,
             "web_frontend": frontend_dir.exists(),
+            "web_retrieval": settings.ENABLE_WEB_RETRIEVAL,
         },
         "database": db_info,
     }

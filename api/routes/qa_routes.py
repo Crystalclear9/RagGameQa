@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import importlib
 import logging
 from typing import Any, Dict, List, Optional
@@ -22,13 +24,14 @@ def _optional_class(module_name: str, class_name: str):
 
 
 class QuestionRequest(BaseModel):
-    question: str = Field(..., description="用户问题")
-    game_id: str = Field(..., description="游戏 ID")
-    user_context: Optional[Dict[str, Any]] = Field(default=None, description="用户上下文")
-    top_k: int = Field(default=5, ge=1, le=20, description="返回来源数量")
-    include_sources: bool = Field(default=True, description="是否返回来源")
-    include_assistive_guide: bool = Field(default=False, description="是否返回分步引导")
-    include_family_guide: bool = Field(default=False, description="是否返回祖孙协作图文指南")
+    question: str = Field(..., description="User question")
+    game_id: str = Field(..., description="Game ID")
+    user_context: Optional[Dict[str, Any]] = Field(default=None, description="User context")
+    top_k: int = Field(default=5, ge=1, le=20, description="Top sources")
+    include_sources: bool = Field(default=True, description="Return sources")
+    include_assistive_guide: bool = Field(default=False, description="Return assistive guide")
+    include_family_guide: bool = Field(default=False, description="Return family guide")
+    enable_web_retrieval: bool = Field(default=True, description="Enable online retrieval fallback")
 
 
 class SourceItem(BaseModel):
@@ -44,9 +47,9 @@ class QuestionResponse(BaseModel):
 
 
 class AssistiveGuideRequest(BaseModel):
-    question: str = Field(..., description="任务或问题描述")
-    game_id: str = Field(..., description="游戏 ID")
-    user_context: Dict[str, Any] = Field(default_factory=dict, description="用户上下文")
+    question: str = Field(..., description="Task or question")
+    game_id: str = Field(..., description="Game ID")
+    user_context: Dict[str, Any] = Field(default_factory=dict, description="User context")
     difficulty_level: str = Field(default="beginner", description="beginner/intermediate/advanced")
 
 
@@ -65,12 +68,17 @@ async def ping():
 async def ask_question(request: QuestionRequest):
     try:
         if not request.question.strip():
-            raise HTTPException(status_code=400, detail="问题不能为空")
+            raise HTTPException(status_code=400, detail="Question cannot be empty")
         if not request.game_id.strip():
-            raise HTTPException(status_code=400, detail="game_id 不能为空")
+            raise HTTPException(status_code=400, detail="game_id cannot be empty")
 
         rag = RAGEngine(request.game_id)
-        result = await rag.query(request.question, request.user_context or {})
+        result = await rag.query(
+            request.question,
+            request.user_context or {},
+            top_k=request.top_k,
+            enable_web_retrieval=request.enable_web_retrieval,
+        )
         metadata = result.get("metadata", {})
 
         user_context = request.user_context or {}
@@ -90,16 +98,19 @@ async def ask_question(request: QuestionRequest):
             else:
                 metadata["patience_analysis"] = {
                     "available": False,
-                    "message": "耐心值模型依赖未安装，已自动跳过。",
+                    "message": "Patience model dependency missing, skipped",
                 }
 
-        if request.include_assistive_guide or user_type != "normal":
+        auto_guide_requested = bool(metadata.get("patience_analysis", {}).get("needs_guidance"))
+        if request.include_assistive_guide or user_type != "normal" or auto_guide_requested:
             guide = StepGuide(request.game_id)
             metadata["assistive_guide"] = await guide.generate_guide(
                 request.question,
                 user_context,
                 str(user_context.get("difficulty_level", "beginner")),
             )
+            if auto_guide_requested and not request.include_assistive_guide:
+                metadata["assistive_guide_reason"] = "patience_model"
 
         if request.include_family_guide or bool(user_context.get("family_mode")):
             family_cls = _optional_class(
@@ -116,13 +127,20 @@ async def ask_question(request: QuestionRequest):
             else:
                 metadata["family_guide"] = {
                     "available": False,
-                    "message": "祖孙协作依赖未安装，已自动跳过。",
+                    "message": "Family collaboration dependency missing, skipped",
                 }
 
         sources: List[SourceItem] = []
         if request.include_sources:
-            for item in result.get("sources", [])[: request.top_k]:
-                sources.append(SourceItem(source=str(item), score=1.0))
+            for item in result.get("retrieved_docs", [])[: request.top_k]:
+                meta = item.get("metadata") or {}
+                label = str(meta.get("title") or meta.get("source") or "source")
+                raw_score = item.get("final_score", item.get("score", 0.0))
+                try:
+                    score = float(raw_score)
+                except Exception:
+                    score = 0.0
+                sources.append(SourceItem(source=label, score=score))
 
         return QuestionResponse(
             answer=result.get("answer", ""),
@@ -134,7 +152,7 @@ async def ask_question(request: QuestionRequest):
         raise
     except Exception as exc:
         logger.error("QA request failed: %s", redact_sensitive_text(exc), exc_info=True)
-        raise HTTPException(status_code=500, detail="问答处理失败")
+        raise HTTPException(status_code=500, detail="QA processing failed")
 
 
 @router.post("/assistive-guide", response_model=AssistiveGuideResponse)
@@ -156,4 +174,4 @@ async def generate_assistive_guide(request: AssistiveGuideRequest):
         )
     except Exception as exc:
         logger.error("Assistive guide generation failed: %s", redact_sensitive_text(exc), exc_info=True)
-        raise HTTPException(status_code=500, detail="分步引导生成失败")
+        raise HTTPException(status_code=500, detail="Assistive guide generation failed")

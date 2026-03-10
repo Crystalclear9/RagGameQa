@@ -1,267 +1,210 @@
-# 基于RAG的游戏问答系统
+# RAG 游戏问答系统
 
-> ✅ **系统已配置完成！** 查看 [`START_HERE.md`](START_HERE.md) 或 [`USE_NOW.md`](USE_NOW.md) 立即开始使用
+这个项目现在已经不是单纯的接口骨架了。它可以用本地知识库做检索，也可以在结果不够时联网补充；可以跑 SQLite，也可以切到 PostgreSQL；有 FastAPI 接口，也有一个能直接演示问答、反馈、模块状态和知识同步的网页控制台。
 
-## ⚡ 快速启动
+目前默认支持 `mock`、`gemini`、`claude` 三种生成模式。模型密钥不再要求用户在网页里输入，而是放在本地 Python 配置文件中，已经被 `.gitignore` 忽略，不会被推到远程仓库。
 
-```bash
-# 启动服务
-python run_server.py
+## 现在能做什么
 
-# 访问API文档
-浏览器打开: http://localhost:8000/docs
-```
+- 游戏问答主链路已经打通：检索、生成、来源返回、日志记录都能跑。
+- 检索链路采用混合方案：`jieba + BM25 + 向量检索 + 可选 BERT 重排序`。
+- 数据库支持 `SQLite` 和 `PostgreSQL`，PostgreSQL 不可用时会自动回退到 SQLite。
+- 支持联网检索补充，且可以把在线资料手动同步进数据库，后续问答直接复用本地文档。
+- 页面内可以直接演示问答、提交反馈、看查询统计、看模块核查、触发知识同步。
+- 老年友好分步引导、祖孙协作模式已经接进主问答流程。
 
----
+## 还没有彻底做完的部分
 
-## 项目概述
+- 多模态接口已经预留，但目前还是轻量实现，不是完整生产版本。
+- 爬虫模块和手动同步已经有了，真正稳定的定时调度和“分钟级更新”还没有补完。
+- Jira 联动、NVIDIA NIM 推理优化还没做。
 
-本项目是一个基于检索增强生成（RAG）技术的通用游戏问答系统。系统采用混合检索策略（倒排索引+向量嵌入）与轻量级领域适配器，实现多游戏快速适配。
+## 目录说明
 
-**当前状态**: ✅ 核心RAG问答功能已可用（使用模拟LLM）
-
-## 主要特性
-
-### 🎯 核心功能
-- **通用型RAG框架**：支持多游戏快速适配，突破"一游戏一模型"局限
-- **混合检索策略**：结合倒排索引和向量嵌入，提升检索精度37%
-- **多模态交互**：支持语音、视觉、触觉等多种交互方式
-- **无障碍支持**：为老年玩家、视障玩家、听障玩家提供专门优化
-- **动态知识管理**：分布式爬虫集群实现知识库分钟级更新
-- **闭环反馈系统**：玩家问题→AI解答→数据提炼→开发者优化→知识库迭代
-
-### 🌟 创新特色
-- **语义耐心值模型**：检测老年玩家重复提问，自动触发分步引导
-- **祖孙协作模式**：生成带拼音标注的图文指南，支持家庭群分享
-- **认知友好设计**：用颜色区块替代文字描述，生成老年人特供版流程图
-- **健康关怀协议**：集成智能穿戴设备，超时游戏自动触发护眼模式
-- **方言识别支持**：支持粤语、川渝方言等地方语言
-
-## 技术架构
-
-### 📁 项目结构
-```
+```text
 rag_game_qa_system/
-├── config/                    # 配置模块
-│   ├── settings.py           # 全局配置
-│   ├── database.py           # 数据库配置
-│   ├── model_config.py       # 模型配置
-│   └── game_configs/         # 游戏特定配置
-├── core/                     # 核心RAG框架
-│   ├── rag_engine.py         # RAG引擎主类
-│   ├── retriever/            # 检索模块
-│   ├── generator/            # 生成模块
-│   └── knowledge_base/       # 知识库管理
-├── data/                     # 数据处理模块
-│   └── crawler/              # 爬虫系统
-├── multimodal/               # 多模态交互模块
-│   ├── speech/               # 语音模块
-│   ├── visual/               # 视觉模块
-│   ├── haptic/               # 触觉模块
-│   └── interaction/          # 交互协调
-├── accessibility/            # 无障碍功能模块
-│   └── elderly_support/       # 老年玩家支持
-├── api/                      # API接口模块
-│   └── routes/               # 路由定义
-├── utils/                    # 工具模块
-└── deployment/               # 部署配置
+├── api/                     # FastAPI 路由
+├── config/                  # 配置、数据库、Provider
+├── core/                    # RAG 主链路、检索器、知识库工具
+├── accessibility/           # 老年友好 / 家庭协作
+├── multimodal/              # 语音、图像、触觉接口
+├── frontend/                # 网页控制台
+├── data/                    # 样例知识、展示数据、SQLite 文件
+└── scripts/                 # 建库、导数、状态检查、联网同步脚本
 ```
 
-### 🔧 技术栈
-- **后端框架**：FastAPI + SQLAlchemy
-- **AI模型**：DeepSeek-R1, SentenceTransformers, BERT
-- **数据库**：PostgreSQL + Redis
-- **向量存储**：FAISS + Qdrant
-- **多模态**：OpenCV, PyTTSx3, SpeechRecognition
-- **部署**：Docker + Kubernetes
+## 1. 安装依赖
 
-## 快速开始
-
-### 📋 环境要求
-- Python 3.8+
-- PostgreSQL 12+
-- Redis 6+
-- CUDA 11.0+ (可选，用于GPU加速)
-
-### 🚀 安装步骤
-
-1. **克隆项目**
-```bash
-git clone <repository-url>
-cd rag_game_qa_system
-```
-
-2. **安装依赖**
 ```bash
 pip install -r requirements.txt
 ```
 
-3. **配置环境**
+如果你只想先跑起来，核心依赖至少要保证这些能装上：
+
 ```bash
-# 复制配置文件
-cp config/settings.py.example config/settings.py
-
-# 编辑配置文件
-vim config/settings.py
+pip install fastapi uvicorn sqlalchemy python-dotenv jieba requests sentence-transformers psycopg[binary]
 ```
 
-4. **初始化数据库**
+## 2. 配置模型 API
+
+先复制一份本地配置文件：
+
 ```bash
-python -c "from config.database import create_tables; create_tables()"
+copy config\local_provider_config.example.py config\local_provider_config.py
 ```
 
-5. **启动服务**
-```bash
-python api/main.py
-```
+然后直接编辑 `config/local_provider_config.py`，把你的 Provider 和 Key 写进去，例如：
 
-### 🌐 API文档
-启动服务后，访问以下地址查看API文档：
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-## 使用示例
-
-### 🎮 基础问答
 ```python
-from core.rag_engine import RAGEngine
-
-# 初始化RAG引擎
-engine = RAGEngine("wow")
-
-# 查询问题
-result = await engine.query("如何学习战士技能？")
-print(result["answer"])
-```
-
-### 👴 老年玩家支持
-```python
-from accessibility.elderly_support import PatienceModel, StepGuide
-
-# 检查耐心值
-patience_model = PatienceModel("wow")
-result = await patience_model.check_patience("怎么组队？", "user_123")
-
-# 生成分步引导
-if result["needs_guidance"]:
-    step_guide = StepGuide("wow")
-    guide = await step_guide.generate_guide("组队任务", {"user_type": "elderly"})
-```
-
-### 🗣️ 多模态交互
-```python
-from multimodal.speech import ASRService, TTSService
-
-# 语音识别
-asr = ASRService("wow")
-result = await asr.recognize_speech(audio_data)
-
-# 语音合成
-tts = TTSService("wow")
-await tts.synthesize_speech("这是答案", {"user_type": "elderly"})
-```
-
-## 配置说明
-
-### 🎯 游戏配置
-在 `config/game_configs/` 目录下添加游戏配置文件：
-
-```json
-{
-  "game_name": "魔兽世界",
-  "game_id": "wow",
-  "version": "10.2.0",
-  "platforms": ["PC", "Mac"],
-  "languages": ["zh-CN", "en-US"],
-  "crawler_config": {
-    "official_sites": ["https://worldofwarcraft.blizzard.com"],
-    "community_sites": ["https://nga.178.com/wow"],
-    "update_frequency": "daily"
-  },
-  "accessibility_config": {
-    "elderly_support": true,
-    "visual_impairment_support": true,
-    "hearing_impairment_support": true
-  }
+LOCAL_PROVIDER_CONFIG = {
+    "AI_PROVIDER": "gemini",
+    "GEMINI_API_KEY": "你的 key",
+    "GEMINI_MODEL": "gemini-2.5-flash",
 }
 ```
 
-### 🔧 模型配置
-在 `config/model_config.py` 中配置AI模型：
+如果你想用 Claude，就把 `AI_PROVIDER` 改成 `claude`，再填 `CLAUDE_API_KEY` 和模型名。
+
+这个文件已经在 `.gitignore` 里，不会被提交到远程仓库。
+
+## 3. 启动项目
+
+### 方案 A：先用本地 SQLite 跑通
+
+这是最省事的方式，不需要额外装数据库。
+
+```bash
+python run_server.py
+```
+
+启动后可以访问：
+
+- 网页控制台：[http://localhost:8000/app](http://localhost:8000/app)
+- Swagger：[http://localhost:8000/docs](http://localhost:8000/docs)
+- 健康检查：[http://localhost:8000/health](http://localhost:8000/health)
+
+### 方案 B：使用 PostgreSQL
+
+如果本地已经有 PostgreSQL，只需要把 `DATABASE_URL` 写到 `.env` 或 `config/local_provider_config.py` 里，例如：
 
 ```python
-RAG_MODELS = {
-    "deepseek-r1": {
-        "model_name": "deepseek-ai/DeepSeek-R1",
-        "max_tokens": 100000,
-        "temperature": 0.7
-    }
+LOCAL_PROVIDER_CONFIG = {
+    "DATABASE_URL": "postgresql://postgres:password@localhost:5432/rag_game_qa",
 }
 ```
 
-## 部署指南
+如果数据库还没建好，可以直接跑：
 
-### 🐳 Docker部署
 ```bash
-# 构建镜像
-docker build -t rag-game-qa .
-
-# 运行容器
-docker run -p 8000:8000 rag-game-qa
+python scripts/create_postgres_db.py
+python scripts/bootstrap_external_db.py
 ```
 
-### ☸️ Kubernetes部署
-```bash
-# 应用配置
-kubectl apply -f deployment/kubernetes/
+如果你本机没有 PostgreSQL，也可以先用 Docker 临时拉一个：
 
-# 检查状态
-kubectl get pods -l app=rag-game-qa
+```bash
+docker run --name rag-game-qa-postgres -e POSTGRES_PASSWORD=password -e POSTGRES_DB=rag_game_qa -p 5432:5432 -d postgres:15-alpine
 ```
 
-## 性能指标
+然后再执行上面的建库和导数脚本。
 
-### 📊 系统性能
-- **问答准确率**：88%+ (较传统方案提升37%)
-- **响应延迟**：<200ms (10万token查询)
-- **知识库处理速度**：2000条/小时
-- **问题识别准确率**：92%+
+## 4. 联网知识同步
 
-### 🎯 无障碍支持
-- **视障玩家独立操作成功率**：91%
-- **老年玩家复杂任务完成率**：提升65%
-- **代际游戏理解差异**：减少50%
-- **WCAG 2.1 AA级标准**：完全符合
+现在系统里有两种“联网”方式：
 
-## 贡献指南
+1. 问答时临时联网补充。
+2. 把在线资料同步进数据库，后续问答优先走本地库。
 
-### 🤝 如何贡献
-1. Fork 项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
+### 在网页里同步
 
-### 📝 代码规范
-- 遵循 PEP 8 代码风格
-- 添加适当的类型注解
-- 编写单元测试
-- 更新相关文档
+打开控制台 [http://localhost:8000/app](http://localhost:8000/app)，找到“联网知识同步”卡片，点击“同步当前游戏”即可。
 
-## 许可证
+### 用脚本同步
 
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+```bash
+python scripts/sync_online_knowledge.py --game-id wow
+python scripts/sync_online_knowledge.py --game-id genshin --query 元素反应 --query 圣遗物 --top-k 2
+```
 
-## 联系方式
+### 用 API 同步
 
-- 项目维护者：[Your Name]
-- 邮箱：[your.email@example.com]
-- 项目地址：[https://github.com/yourusername/rag-game-qa-system]
+```bash
+curl -X POST http://localhost:8000/api/v1/project/knowledge-sync \
+  -H "Content-Type: application/json" \
+  -d "{\"game_id\":\"wow\",\"max_results_per_query\":2}"
+```
 
-## 致谢
+## 5. 常用接口
 
-感谢所有为项目做出贡献的开发者和社区成员！
+### 提问
 
----
+```bash
+curl -X POST http://localhost:8000/api/v1/qa/ask \
+  -H "Content-Type: application/json" \
+  -d "{\"game_id\":\"wow\",\"question\":\"战士如何学习技能？\",\"enable_web_retrieval\":true}"
+```
 
-**注意**：本项目仍在积极开发中，欢迎提交Issue和Pull Request！
+### 查看项目总览
+
+```bash
+curl http://localhost:8000/api/v1/project/overview
+```
+
+### 查看数据库状态
+
+```bash
+python scripts/check_db_status.py
+```
+
+## 6. 页面里可以直接看的东西
+
+- 系统当前用的 Provider 和模型
+- 数据库后端、是否回退到 SQLite
+- 当前知识库覆盖情况
+- 模块实现状态核查
+- 批量演示问题
+- 查询统计、反馈统计、高频问题、优先级报告
+- 联网知识是否已经同步入库
+
+## 7. 排错建议
+
+### 看到 `No module named 'psycopg2'`
+
+这通常只是说明 PostgreSQL 驱动没装好，系统会退回 SQLite。想启用 PostgreSQL，安装下面任意一个即可：
+
+```bash
+pip install psycopg[binary]
+```
+
+或：
+
+```bash
+pip install psycopg2-binary
+```
+
+### 服务启动后马上退出
+
+先检查：
+
+```bash
+python scripts/check_db_status.py
+```
+
+再确认：
+
+- `config/local_provider_config.py` 语法没有写错
+- `DATABASE_URL` 如果是 PostgreSQL，数据库真的已经启动
+- 本地端口 `8000` 没被别的程序占用
+
+## 8. 一个更实际的使用顺序
+
+1. 先配置好 `config/local_provider_config.py`。
+2. 跑 `python run_server.py`。
+3. 打开 [http://localhost:8000/app](http://localhost:8000/app)。
+4. 先在“联网知识同步”里给目标游戏同步一轮资料。
+5. 再到“问答演示”里提问题。
+6. 根据结果提交反馈，页面右侧看统计变化。
+
+## 9. 说明
+
+这个仓库现在已经把“只是接口壳子”和“真正能跑的 RAG 演示系统”区分开了。能跑通的部分已经尽量落到代码和页面里；还没做完的部分，也会在模块核查页里明确标出来，而不是写得很满。

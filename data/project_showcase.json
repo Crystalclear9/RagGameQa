@@ -1,8 +1,8 @@
 {
   "system_info": {
-    "project_name": "基于检索增强生成的游戏类问答智能体",
-    "summary": "这是一个面向多游戏知识库的 RAG 问答系统，提供混合检索、答案生成、反馈闭环、多模态扩展和无障碍辅助能力。",
-    "positioning": "项目演示与接口验证页面",
+    "project_name": "RAG 游戏问答系统",
+    "summary": "一个面向游戏资料问答的 RAG 系统，已经打通本地知识库检索、联网补充、反馈分析和图形化演示页面。",
+    "positioning": "项目展示、接口验证与知识库运维控制台",
     "supported_games": [
       "魔兽世界",
       "英雄联盟",
@@ -14,79 +14,80 @@
   },
   "overview_cards": [
     {
-      "label": "核心能力",
+      "label": "问答主链路",
       "value": "混合检索 + RAG 生成",
-      "description": "BM25、向量检索、重排序、问答生成整合为统一链路"
+      "description": "BM25、向量检索、重排序和答案生成已经串成统一流程。"
     },
     {
-      "label": "服务形态",
+      "label": "知识库形态",
+      "value": "SQLite / PostgreSQL",
+      "description": "既可以本地直接跑，也可以切到外部数据库做持久化。"
+    },
+    {
+      "label": "联网能力",
+      "value": "在线补充 + 手动落库",
+      "description": "问题检索时可联网补充，也支持把在线资料同步进数据库。"
+    },
+    {
+      "label": "使用方式",
       "value": "FastAPI + Web GUI",
-      "description": "支持 REST API、Swagger 文档和浏览器演示界面"
-    },
-    {
-      "label": "部署模式",
-      "value": "SQLite / PostgreSQL / 内存",
-      "description": "支持本地轻量运行和数据库持久化两种场景"
-    },
-    {
-      "label": "模型接入",
-      "value": "Mock / Gemini / Claude",
-      "description": "支持本地演示模式和外部大模型调用"
+      "description": "既能走 Swagger / REST API，也能直接打开网页演示。"
     }
   ],
   "architecture_sections": [
     {
-      "title": "检索链路",
+      "title": "检索层",
       "items": [
-        "jieba 分词 + BM25 关键词检索",
-        "Sentence-Transformers 向量语义检索",
-        "BERT 重排序增强相关性",
-        "统一来源抽取与置信度估计"
+        "jieba 分词 + BM25 关键词召回",
+        "Sentence-Transformers 语义向量检索",
+        "BERT 重排序按需启用",
+        "本地结果不足时自动走联网补充"
       ]
     },
     {
-      "title": "生成链路",
+      "title": "知识层",
       "items": [
-        "检索结果上下文拼接",
-        "领域适配器补充游戏语境",
-        "Mock / Gemini / Claude 三种生成模式",
-        "统一回答格式化和辅助说明输出"
+        "样例知识库支持开箱即用",
+        "SQLite / PostgreSQL 双后端",
+        "在线 wiki / Wikipedia 内容可同步入库",
+        "问答日志、反馈数据统一写库"
       ]
     },
     {
-      "title": "扩展模块",
+      "title": "交互层",
       "items": [
-        "反馈闭环与趋势统计",
-        "多模态语音 / 图像 / 触觉接口",
-        "老年友好分步引导",
-        "健康提醒与干预接口"
+        "Web 控制台展示运行状态和模块核查",
+        "问答页支持联网开关、分步引导、家庭模式",
+        "反馈分析生成高频问题和优先级报告",
+        "多模态接口保留统一入口，便于后续扩展"
       ]
     }
   ],
   "implemented_modules": [
     "RAG 问答主链路",
     "混合检索与来源返回",
-    "问答日志与反馈统计",
-    "无障碍分步引导",
-    "多模态接口编排",
+    "SQLite / PostgreSQL 数据库模式",
+    "联网检索补充与在线知识落库",
+    "反馈写入、统计和优先级报告",
+    "分步引导与祖孙协作模式",
     "Web GUI 与 Swagger 文档",
-    "Gemini / Claude 生成接入"
+    "Gemini / Claude / Mock 模型接入"
   ],
   "module_audit": [
     {
       "module": "通用 RAG 问答框架",
       "status": "implemented",
-      "description": "问答、检索、生成、来源返回已打通，可用于实际接口调用和页面演示。",
+      "description": "问答、检索、生成、来源返回已经打通，可直接通过 API 和网页调用。",
       "evidence": [
         "/api/v1/qa/ask",
         "core/rag_engine.py",
-        "core/retriever/hybrid_retriever.py"
+        "core/generator/llm_generator.py"
       ]
     },
     {
       "module": "混合检索策略",
       "status": "implemented",
-      "description": "倒排检索、向量检索和重排序模块均存在并接入主流程。",
+      "description": "倒排检索、向量检索和重排序均已接入主流程，并支持缺依赖时自动降级。",
       "evidence": [
         "core/retriever/inverted_index.py",
         "core/retriever/vector_retriever.py",
@@ -94,18 +95,37 @@
       ]
     },
     {
-      "module": "多游戏知识库适配",
+      "module": "外部数据库持久化",
       "status": "implemented",
-      "description": "系统支持多游戏 ID、样例文档和知识覆盖统计。",
+      "description": "支持 PostgreSQL 连接、建库建表、样例数据导入，并保留 SQLite 回退模式。",
       "evidence": [
-        "data/sample_data.json",
-        "/api/v1/project/overview"
+        "config/database.py",
+        "scripts/create_postgres_db.py",
+        "scripts/bootstrap_external_db.py"
+      ]
+    },
+    {
+      "module": "联网检索补充",
+      "status": "implemented",
+      "description": "当本地检索结果不足时，会调用在线 wiki / Wikipedia 补充上下文。",
+      "evidence": [
+        "core/retriever/web_retriever.py",
+        "core/rag_engine.py"
+      ]
+    },
+    {
+      "module": "在线知识同步落库",
+      "status": "implemented",
+      "description": "支持手动把联网结果写入数据库，后续问答可以直接复用本地文档。",
+      "evidence": [
+        "/api/v1/project/knowledge-sync",
+        "core/knowledge_base/knowledge_sync.py"
       ]
     },
     {
       "module": "反馈闭环与优先级分析",
       "status": "implemented",
-      "description": "反馈写入、趋势统计、热力图和优先级报告均可调用，但分类仍以规则增强为主。",
+      "description": "反馈写入、查询统计、热力图和优先级报告都可直接调用。",
       "evidence": [
         "/api/v1/analytics/feedback",
         "/api/v1/analytics/query-stats",
@@ -113,54 +133,52 @@
       ]
     },
     {
-      "module": "语义耐心值模型",
-      "status": "partial",
-      "description": "已有耐心值模型代码，但尚未完整串入问答主流程自动触发策略。",
+      "module": "老年友好分步引导",
+      "status": "implemented",
+      "description": "支持按用户类型生成步骤化引导，老年用户可自动触发更细的说明。",
       "evidence": [
-        "accessibility/elderly_support/patience_model.py"
+        "accessibility/elderly_support/step_guide.py",
+        "accessibility/elderly_support/patience_model.py",
+        "/api/v1/qa/assistive-guide"
       ]
     },
     {
       "module": "祖孙协作模式",
-      "status": "partial",
-      "description": "已实现拼音图文指南生成逻辑，但当前页面和主 API 还没有统一对外入口。",
+      "status": "implemented",
+      "description": "已接入问答主流程，可返回拼音图文摘要、家庭提示和分享内容。",
       "evidence": [
-        "accessibility/elderly_support/family_collaboration.py"
-      ]
-    },
-    {
-      "module": "方言识别",
-      "status": "partial",
-      "description": "当前仅有占位识别器，未达到文档中所述的真实方言识别能力。",
-      "evidence": [
-        "multimodal/speech/dialect_recognizer.py"
+        "accessibility/elderly_support/family_collaboration.py",
+        "/api/v1/qa/ask"
       ]
     },
     {
       "module": "多模态交互",
       "status": "partial",
-      "description": "语音、图像、触觉 API 已存在，但部分能力仍为轻量实现或占位返回。",
+      "description": "语音、图像、触觉接口已预留且可调用，但当前仍偏轻量实现，不是完整生产方案。",
       "evidence": [
-        "/api/v1/multimodal/capabilities",
-        "/api/v1/multimodal/process"
+        "/api/v1/multimodal/process",
+        "/api/v1/multimodal/capabilities"
       ]
     },
     {
-      "module": "动态爬虫与分钟级知识更新",
-      "status": "missing",
-      "description": "当前仓库没有真正运行中的分布式爬虫集群和定时更新任务。",
-      "evidence": []
+      "module": "动态爬虫与定时更新",
+      "status": "partial",
+      "description": "仓库内已有爬虫模块和手动同步入口，但还没有真正稳定运行的定时调度与分钟级更新任务。",
+      "evidence": [
+        "data/crawler/spider_cluster.py",
+        "core/knowledge_base/knowledge_sync.py"
+      ]
     },
     {
       "module": "Jira 闭环集成",
       "status": "missing",
-      "description": "文档中提到的开发者工单联动尚未实现。",
+      "description": "开发者工单联动还没有接进当前代码库。",
       "evidence": []
     },
     {
       "module": "NVIDIA NIM 推理优化",
       "status": "missing",
-      "description": "文档中的 NIM 推理优化尚未接入代码主流程。",
+      "description": "文档里提到的 NIM 推理优化暂未接入。",
       "evidence": []
     }
   ],
@@ -169,45 +187,46 @@
       "name": "问答接口",
       "method": "POST",
       "path": "/api/v1/qa/ask",
-      "description": "RAG 主接口，输入问题和 game_id，返回答案、来源、置信度和元数据。"
+      "description": "输入问题和 game_id，返回答案、来源、置信度和运行元数据。"
     },
     {
-      "name": "辅助分步引导",
+      "name": "分步引导",
       "method": "POST",
       "path": "/api/v1/qa/assistive-guide",
-      "description": "单独生成面向老年或无障碍场景的分步指导。"
+      "description": "单独生成适合老年或无障碍场景的步骤化说明。"
+    },
+    {
+      "name": "联网知识同步",
+      "method": "POST",
+      "path": "/api/v1/project/knowledge-sync",
+      "description": "把在线检索到的资料写入数据库，用于后续 RAG 检索。"
     },
     {
       "name": "反馈写入",
       "method": "POST",
       "path": "/api/v1/analytics/feedback",
-      "description": "记录用户评分和评论，形成反馈闭环。"
+      "description": "记录用户评分和评论，纳入后续分析。"
     },
     {
       "name": "查询统计",
       "method": "GET",
       "path": "/api/v1/analytics/query-stats",
-      "description": "返回查询量、置信度、耗时和高频问题等统计。"
+      "description": "查看查询量、置信度、耗时和高频问题。"
     },
     {
-      "name": "多模态处理",
-      "method": "POST",
-      "path": "/api/v1/multimodal/process",
-      "description": "统一接入语音、图像、触觉相关输入。"
-    },
-    {
-      "name": "项目模块核查",
+      "name": "模块核查",
       "method": "GET",
       "path": "/api/v1/project/module-audit",
-      "description": "返回当前项目对照设计文档的实现状态。"
+      "description": "按当前代码状态对照设计文档输出实现情况。"
     }
   ],
   "python_config": {
     "config_file": "config/local_provider_config.py",
     "instructions": [
-      "直接在 Python 文件中填写 API Key，不需要通过网页输入。",
+      "在 Python 文件里直接填写模型 Provider 和 API Key，不需要在网页里输入。",
+      "推荐从 `config/local_provider_config.example.py` 复制一份再修改。",
       "修改后重启 `python run_server.py` 即可生效。",
-      "这个文件已加入 `.gitignore`，不会被提交到远程仓库。"
+      "这个文件已经被 `.gitignore` 忽略，不会被提交到远程仓库。"
     ],
     "sample_lines": [
       "LOCAL_PROVIDER_CONFIG = {",
@@ -220,15 +239,15 @@
   "demo_questions": [
     {
       "game_id": "wow",
-      "question": "魔兽世界中如何通过组队查找器加入副本？"
-    },
-    {
-      "game_id": "wow",
       "question": "魔兽世界战士如何学习新的职业技能？"
     },
     {
+      "game_id": "wow",
+      "question": "魔兽世界里怎么通过组队查找器进入副本？"
+    },
+    {
       "game_id": "lol",
-      "question": "英雄联盟开局打野路线有什么推荐？"
+      "question": "英雄联盟开局打野路线应该怎么走？"
     },
     {
       "game_id": "genshin",

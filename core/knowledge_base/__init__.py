@@ -1,17 +1,25 @@
 # 知识库管理模块
-"""
-知识库管理模块
+"""Graceful knowledge base package exports."""
 
-提供知识库的增删改查、嵌入向量管理和语义压缩功能。
-支持动态知识库更新和优化。
-"""
+from __future__ import annotations
 
-from .kb_manager import KnowledgeBaseManager
-from .embedding_service import EmbeddingService
-from .semantic_compression import SemanticCompression
+KnowledgeBaseManager = None
+EmbeddingService = None
+SemanticCompression = None
 
-__all__ = [
-    "KnowledgeBaseManager",
-    "EmbeddingService",
-    "SemanticCompression"
-]
+try:
+    from .kb_manager import KnowledgeBaseManager  # type: ignore[assignment]
+except Exception:
+    KnowledgeBaseManager = None  # type: ignore[assignment]
+
+try:
+    from .embedding_service import EmbeddingService  # type: ignore[assignment]
+except Exception:
+    EmbeddingService = None  # type: ignore[assignment]
+
+try:
+    from .semantic_compression import SemanticCompression  # type: ignore[assignment]
+except Exception:
+    SemanticCompression = None  # type: ignore[assignment]
+
+__all__ = ["KnowledgeBaseManager", "EmbeddingService", "SemanticCompression"]

@@ -9,8 +9,14 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from config.database import Feedback, QueryLog, SessionLocal, database_status
+from config.database import Document, Feedback, Game, QueryLog, SessionLocal, database_status
 from config.runtime_config import get_provider_snapshot
+from config.settings import settings
+from core.knowledge_base.knowledge_sync import (
+    KnowledgeSyncService,
+    build_sync_status,
+    get_default_sync_queries,
+)
 from core.rag_engine import RAGEngine
 from utils.security import redact_sensitive_text
 
@@ -34,30 +40,79 @@ def _load_project_showcase() -> Dict[str, Any]:
     return _load_json_file(PROJECT_SHOWCASE_PATH)
 
 
-def _build_knowledge_coverage() -> Dict[str, Any]:
-    if not SAMPLE_DATA_PATH.exists():
-        return {"games": [], "total_documents": 0}
+def _parse_json_text(value: Any) -> Any:
+    if isinstance(value, (list, dict)):
+        return value
+    if value is None or value == "":
+        return []
+    try:
+        return json.loads(str(value))
+    except Exception:
+        return value
 
-    payload = _load_json_file(SAMPLE_DATA_PATH)
-    games = payload.get("games", [])
-    documents = payload.get("documents", [])
-    counts = Counter(doc.get("game_id", "unknown") for doc in documents)
-    coverage = []
-    for game in games:
-        coverage.append(
-            {
-                "game_id": game.get("game_id"),
-                "game_name": game.get("game_name"),
-                "version": game.get("version"),
-                "document_count": counts.get(game.get("game_id"), 0),
-                "platforms": game.get("platforms", []),
-                "languages": game.get("languages", []),
-            }
+
+def _build_knowledge_coverage() -> Dict[str, Any]:
+    payload = _load_json_file(SAMPLE_DATA_PATH) if SAMPLE_DATA_PATH.exists() else {"games": [], "documents": []}
+    sample_games = {game.get("game_id"): game for game in payload.get("games", []) if game.get("game_id")}
+    sample_counts = Counter(doc.get("game_id", "unknown") for doc in payload.get("documents", []))
+
+    db = SessionLocal()
+    try:
+        game_rows = db.query(Game).all()
+        doc_counts = Counter(
+            (
+                getattr(row, "game_id", None)
+                or (row[0] if isinstance(row, tuple) and row else None)
+                or "unknown"
+            )
+            for row in db.query(Document.game_id).all()
         )
-    return {
-        "games": coverage,
-        "total_documents": len(documents),
-    }
+        has_db_data = bool(game_rows) or bool(doc_counts)
+        if not has_db_data:
+            raise ValueError("database coverage empty")
+
+        games_by_id = {row.game_id: row for row in game_rows if row.game_id}
+        game_ids = sorted(set(sample_games) | set(games_by_id) | set(doc_counts))
+        coverage = []
+        for game_id in game_ids:
+            row = games_by_id.get(game_id)
+            sample = sample_games.get(game_id, {})
+            coverage.append(
+                {
+                    "game_id": game_id,
+                    "game_name": getattr(row, "game_name", None) or sample.get("game_name") or game_id,
+                    "version": getattr(row, "version", None) or sample.get("version") or "current",
+                    "document_count": doc_counts.get(game_id, 0),
+                    "platforms": _parse_json_text(getattr(row, "platforms", None)) or sample.get("platforms", []),
+                    "languages": _parse_json_text(getattr(row, "languages", None)) or sample.get("languages", []),
+                }
+            )
+
+        return {
+            "games": coverage,
+            "total_documents": sum(doc_counts.values()),
+            "source": "database",
+        }
+    except Exception:
+        coverage = []
+        for game in payload.get("games", []):
+            coverage.append(
+                {
+                    "game_id": game.get("game_id"),
+                    "game_name": game.get("game_name"),
+                    "version": game.get("version"),
+                    "document_count": sample_counts.get(game.get("game_id"), 0),
+                    "platforms": game.get("platforms", []),
+                    "languages": game.get("languages", []),
+                }
+            )
+        return {
+            "games": coverage,
+            "total_documents": len(payload.get("documents", [])),
+            "source": "sample_data",
+        }
+    finally:
+        db.close()
 
 
 def _build_runtime_metrics() -> Dict[str, Any]:
@@ -73,6 +128,10 @@ def _build_runtime_metrics() -> Dict[str, Any]:
             "ai_provider": provider_snapshot["provider"],
             "model": provider_snapshot["model"],
             "live_llm_enabled": provider_snapshot["live_llm_enabled"],
+            "rag_data_mode": settings.RAG_DATA_MODE,
+            "web_retrieval_enabled": settings.ENABLE_WEB_RETRIEVAL,
+            "web_retrieval_trigger_doc_count": settings.WEB_RETRIEVAL_TRIGGER_DOC_COUNT,
+            "web_retrieval_max_results": settings.WEB_RETRIEVAL_MAX_RESULTS,
             "python_config_file": str(LOCAL_PROVIDER_CONFIG_PATH.relative_to(PROJECT_ROOT)),
             "python_config_exists": LOCAL_PROVIDER_CONFIG_PATH.exists(),
             "storage_mode": provider_snapshot["storage_mode"],
@@ -116,6 +175,12 @@ class DemoBatchResponse(BaseModel):
     results: List[DemoBatchResult]
 
 
+class KnowledgeSyncRequest(BaseModel):
+    game_id: str = Field(..., description="游戏 ID")
+    queries: Optional[List[str]] = Field(default=None, description="自定义联网查询词")
+    max_results_per_query: int = Field(default=2, ge=1, le=5, description="每个查询拉取的结果数")
+
+
 @router.get("/overview")
 async def get_project_overview():
     try:
@@ -123,6 +188,7 @@ async def get_project_overview():
         return {
             **showcase,
             "knowledge_coverage": _build_knowledge_coverage(),
+            "knowledge_sync": build_sync_status(),
             "runtime_metrics": _build_runtime_metrics(),
         }
     except Exception as exc:
@@ -148,6 +214,29 @@ async def get_module_audit():
     except Exception as exc:
         logger.error("Failed to load module audit: %s", redact_sensitive_text(exc), exc_info=True)
         raise HTTPException(status_code=500, detail="模块核查加载失败")
+
+
+@router.get("/knowledge-sync/status")
+async def get_knowledge_sync_status(game_id: Optional[str] = None):
+    try:
+        status = build_sync_status(game_id)
+        if game_id:
+            status["game_id"] = game_id
+            status["default_queries"] = get_default_sync_queries(game_id)
+        return status
+    except Exception as exc:
+        logger.error("Knowledge sync status failed: %s", redact_sensitive_text(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail="联网知识同步状态读取失败")
+
+
+@router.post("/knowledge-sync")
+async def run_knowledge_sync(req: KnowledgeSyncRequest):
+    try:
+        service = KnowledgeSyncService(req.game_id)
+        return await service.sync(req.queries, req.max_results_per_query)
+    except Exception as exc:
+        logger.error("Knowledge sync failed: %s", redact_sensitive_text(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail="联网知识同步失败")
 
 
 @router.post("/demo-batch", response_model=DemoBatchResponse)
