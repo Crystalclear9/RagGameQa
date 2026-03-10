@@ -3,9 +3,12 @@ const state = {
   lastQueryLogId: null,
   overview: null,
   audit: null,
+  controllers: {},
 };
 
 const refs = {
+  navLinks: Array.from(document.querySelectorAll(".nav-link")),
+  sections: Array.from(document.querySelectorAll("section[id]")),
   heroTitle: document.getElementById("heroTitle"),
   heroSubtitle: document.getElementById("heroSubtitle"),
   heroChips: document.getElementById("heroChips"),
@@ -68,6 +71,20 @@ const refs = {
   topQuestions: document.getElementById("topQuestions"),
   priorityList: document.getElementById("priorityList"),
 };
+
+function nextRequestOptions(slot) {
+  const active = state.controllers[slot];
+  if (active) {
+    active.abort();
+  }
+  const controller = new AbortController();
+  state.controllers[slot] = controller;
+  return { signal: controller.signal };
+}
+
+function isAbortError(error) {
+  return error?.name === "AbortError";
+}
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
@@ -483,44 +500,71 @@ function renderBatchDemoResults(results = [], loading = false) {
 }
 
 async function loadOverview() {
-  const overview = await fetchJson("/api/v1/project/overview");
-  state.overview = overview;
-  renderHero(overview);
-  renderOverviewCards(overview);
-  renderRuntime(overview);
-  renderCoverage(overview);
-  renderArchitecture(overview);
-  renderList(refs.implementedList, overview.implemented_modules || [], "暂无已实现模块");
-  renderApiReference(overview);
-  renderPythonConfig(overview);
-  renderKnowledgeSync(overview);
-  renderJira(overview);
-  renderDemoScenarios(overview);
+  try {
+    const overview = await fetchJson("/api/v1/project/overview", nextRequestOptions("overview"));
+    state.overview = overview;
+    renderHero(overview);
+    renderOverviewCards(overview);
+    renderRuntime(overview);
+    renderCoverage(overview);
+    renderArchitecture(overview);
+    renderList(refs.implementedList, overview.implemented_modules || [], "暂无已实现模块");
+    renderApiReference(overview);
+    renderPythonConfig(overview);
+    renderKnowledgeSync(overview);
+    renderJira(overview);
+    renderDemoScenarios(overview);
+  } catch (error) {
+    if (isAbortError(error)) {
+      return;
+    }
+    throw error;
+  }
 }
 
 async function loadAudit() {
-  const audit = await fetchJson("/api/v1/project/module-audit");
-  renderAudit(audit);
+  try {
+    const audit = await fetchJson("/api/v1/project/module-audit", nextRequestOptions("audit"));
+    renderAudit(audit);
+  } catch (error) {
+    if (isAbortError(error)) {
+      return;
+    }
+    throw error;
+  }
 }
 
 async function refreshDashboard() {
   const gameId = refs.gameId.value;
   try {
     const [stats, priorities] = await Promise.all([
-      fetchJson(`/api/v1/analytics/query-stats?game_id=${encodeURIComponent(gameId)}&days=7`),
-      fetchJson(`/api/v1/analytics/priority-report?game_id=${encodeURIComponent(gameId)}`),
+      fetchJson(
+        `/api/v1/analytics/query-stats?game_id=${encodeURIComponent(gameId)}&days=7`,
+        nextRequestOptions("dashboard"),
+      ),
+      fetchJson(
+        `/api/v1/analytics/priority-report?game_id=${encodeURIComponent(gameId)}`,
+        nextRequestOptions("priority"),
+      ),
     ]);
     renderStats(stats);
     renderTrends(stats.recent_days || []);
     renderTopQuestions(stats.top_questions || []);
     renderPriority(priorities || []);
   } catch (error) {
+    if (isAbortError(error)) {
+      return;
+    }
     refs.feedbackMessage.textContent = `看板刷新失败：${error.message}`;
   }
 }
 
-async function syncProjectView() {
-  await Promise.all([loadOverview(), loadAudit(), refreshDashboard()]);
+async function syncProjectView(includeAudit = false) {
+  const tasks = [loadOverview(), refreshDashboard()];
+  if (includeAudit || !state.audit) {
+    tasks.push(loadAudit());
+  }
+  await Promise.all(tasks);
 }
 
 async function submitQuestion(event) {
@@ -598,7 +642,7 @@ async function submitFeedback() {
 
     refs.feedbackComment.value = "";
     refs.feedbackMessage.textContent = "反馈已记录，已纳入后续分析。";
-    await syncProjectView();
+    await Promise.all([loadOverview(), refreshDashboard()]);
   } catch (error) {
     refs.feedbackMessage.textContent = `反馈提交失败：${error.message}`;
   }
@@ -626,7 +670,7 @@ async function runBatchDemo() {
       body: JSON.stringify(payload),
     });
     renderBatchDemoResults(result.results || []);
-    await syncProjectView();
+    await Promise.all([loadOverview(), refreshDashboard()]);
   } catch (error) {
     refs.batchDemoResults.innerHTML = `<p class="subtle">批量演示失败：${escapeHtml(error.message)}</p>`;
   }
@@ -644,7 +688,7 @@ async function runKnowledgeSync() {
       }),
     });
     refs.syncMessage.textContent = `同步完成：新增 ${result.stored_new_docs || 0} 篇，跳过 ${result.skipped_existing_docs || 0} 篇重复内容。`;
-    await syncProjectView();
+    await Promise.all([loadOverview(), refreshDashboard()]);
   } catch (error) {
     refs.syncMessage.textContent = `同步失败：${error.message}`;
   }
@@ -664,7 +708,7 @@ async function saveKnowledgeSyncSchedule() {
       }),
     });
     refs.syncMessage.textContent = `计划已保存：${result.enabled ? "已启用" : "已停用"}，间隔 ${result.interval_minutes} 分钟。`;
-    await syncProjectView();
+    await loadOverview();
   } catch (error) {
     refs.syncMessage.textContent = `保存失败：${error.message}`;
   }
@@ -681,7 +725,7 @@ async function runScheduledSyncNow() {
       }),
     });
     refs.syncMessage.textContent = `执行完成：新增 ${result.total_stored_new_docs || 0} 篇，跳过 ${result.total_skipped_existing_docs || 0} 篇。`;
-    await syncProjectView();
+    await loadOverview();
   } catch (error) {
     refs.syncMessage.textContent = `执行失败：${error.message}`;
   }
@@ -705,7 +749,7 @@ async function exportJira(dryRun = true) {
       ? `预览完成：共 ${result.issue_count} 项。${issuePreview || "暂无可导出的优先级项。"}`
       : `已处理 ${result.issue_count} 项。${issuePreview || "没有生成新工单。"}`
     ;
-    await syncProjectView();
+    await Promise.all([loadOverview(), refreshDashboard()]);
   } catch (error) {
     refs.jiraMessage.textContent = `Jira 导出失败：${error.message}`;
   }
@@ -722,6 +766,44 @@ function bindRatingButtons() {
   });
 }
 
+function setActiveNav(targetId) {
+  refs.navLinks.forEach((link) => {
+    const active = link.getAttribute("href") === `#${targetId}`;
+    link.classList.toggle("is-active", active);
+  });
+}
+
+function bindSectionNav() {
+  if (!("IntersectionObserver" in window) || !refs.sections.length) {
+    return;
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((left, right) => right.intersectionRatio - left.intersectionRatio);
+      if (visible.length) {
+        setActiveNav(visible[0].target.id);
+      }
+    },
+    {
+      rootMargin: "-18% 0px -55% 0px",
+      threshold: [0.2, 0.45, 0.7],
+    },
+  );
+
+  refs.sections.forEach((section) => observer.observe(section));
+  refs.navLinks.forEach((link) => {
+    link.addEventListener("click", () => {
+      const targetId = link.getAttribute("href")?.replace("#", "");
+      if (targetId) {
+        setActiveNav(targetId);
+      }
+    });
+  });
+}
+
 refs.qaForm.addEventListener("submit", submitQuestion);
 refs.submitFeedback.addEventListener("click", submitFeedback);
 refs.refreshDashboard.addEventListener("click", refreshDashboard);
@@ -730,12 +812,13 @@ refs.runBatchDemo.addEventListener("click", runBatchDemo);
 refs.syncSelectedGame.addEventListener("click", runKnowledgeSync);
 refs.saveSyncSchedule.addEventListener("click", saveKnowledgeSyncSchedule);
 refs.syncRunScheduled.addEventListener("click", runScheduledSyncNow);
-refs.refreshSyncStatus.addEventListener("click", syncProjectView);
+refs.refreshSyncStatus.addEventListener("click", () => syncProjectView(false));
 refs.previewJiraExport.addEventListener("click", () => exportJira(true));
 refs.createJiraExport.addEventListener("click", () => exportJira(false));
 
 bindRatingButtons();
-syncProjectView().catch((error) => {
+bindSectionNav();
+syncProjectView(true).catch((error) => {
   refs.heroSubtitle.textContent = `系统页面加载失败：${error.message}`;
   refs.batchDemoResults.innerHTML = `<p class="subtle">初始化失败：${escapeHtml(error.message)}</p>`;
 });

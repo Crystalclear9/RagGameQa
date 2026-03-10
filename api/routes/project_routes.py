@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 import logging
-from collections import Counter
+from collections import Counter, OrderedDict
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 
 from config.database import Document, Feedback, Game, QueryLog, SessionLocal, database_status
 from config.runtime_config import get_provider_snapshot
@@ -29,6 +30,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_SHOWCASE_PATH = PROJECT_ROOT / "data" / "project_showcase.json"
 SAMPLE_DATA_PATH = PROJECT_ROOT / "data" / "sample_data.json"
 LOCAL_PROVIDER_CONFIG_PATH = PROJECT_ROOT / "config" / "local_provider_config.py"
+_SHOWCASE_CACHE: Dict[str, Any] = {"mtime": None, "payload": None}
+_DEMO_ENGINE_CACHE: "OrderedDict[str, RAGEngine]" = OrderedDict()
 
 
 def _load_json_file(path: Path) -> Dict[str, Any]:
@@ -39,12 +42,31 @@ def _load_json_file(path: Path) -> Dict[str, Any]:
 def _load_project_showcase() -> Dict[str, Any]:
     if not PROJECT_SHOWCASE_PATH.exists():
         raise FileNotFoundError(f"项目展示数据不存在: {PROJECT_SHOWCASE_PATH}")
-    return _load_json_file(PROJECT_SHOWCASE_PATH)
+    mtime = PROJECT_SHOWCASE_PATH.stat().st_mtime
+    if _SHOWCASE_CACHE["mtime"] == mtime and _SHOWCASE_CACHE["payload"] is not None:
+        return _SHOWCASE_CACHE["payload"]
+    payload = _load_json_file(PROJECT_SHOWCASE_PATH)
+    _SHOWCASE_CACHE["mtime"] = mtime
+    _SHOWCASE_CACHE["payload"] = payload
+    return payload
 
 
 def _parse_json_text(value: Any) -> Any:
     if isinstance(value, (list, dict)):
         return value
+
+
+def _get_demo_engine(game_id: str) -> RAGEngine:
+    engine = _DEMO_ENGINE_CACHE.get(game_id)
+    if engine is not None:
+        _DEMO_ENGINE_CACHE.move_to_end(game_id)
+        return engine
+
+    engine = RAGEngine(game_id)
+    _DEMO_ENGINE_CACHE[game_id] = engine
+    if len(_DEMO_ENGINE_CACHE) > 6:
+        _DEMO_ENGINE_CACHE.popitem(last=False)
+    return engine
     if value is None or value == "":
         return []
     try:
@@ -120,10 +142,23 @@ def _build_knowledge_coverage() -> Dict[str, Any]:
 def _build_runtime_metrics() -> Dict[str, Any]:
     db = SessionLocal()
     try:
-        query_rows = db.query(QueryLog).all()
-        feedback_rows = db.query(Feedback).all()
-        queries_by_game = Counter(row.game_id or "unknown" for row in query_rows)
-        feedback_by_game = Counter(row.game_id or "unknown" for row in feedback_rows)
+        total_queries, avg_confidence, avg_processing_time = (
+            db.query(
+                func.count(QueryLog.id),
+                func.avg(QueryLog.confidence),
+                func.avg(QueryLog.processing_time),
+            )
+            .one()
+        )
+        total_feedback = int(db.query(func.count(Feedback.id)).scalar() or 0)
+        queries_by_game = {
+            str(game_id or "unknown"): int(count or 0)
+            for game_id, count in db.query(QueryLog.game_id, func.count(QueryLog.id)).group_by(QueryLog.game_id).all()
+        }
+        feedback_by_game = {
+            str(game_id or "unknown"): int(count or 0)
+            for game_id, count in db.query(Feedback.game_id, func.count(Feedback.id)).group_by(Feedback.game_id).all()
+        }
         provider_snapshot = get_provider_snapshot()
         scheduler_status = knowledge_sync_scheduler.get_status()
         return {
@@ -141,18 +176,12 @@ def _build_runtime_metrics() -> Dict[str, Any]:
             "python_config_file": str(LOCAL_PROVIDER_CONFIG_PATH.relative_to(PROJECT_ROOT)),
             "python_config_exists": LOCAL_PROVIDER_CONFIG_PATH.exists(),
             "storage_mode": provider_snapshot["storage_mode"],
-            "total_queries": len(query_rows),
-            "total_feedback": len(feedback_rows),
+            "total_queries": int(total_queries or 0),
+            "total_feedback": total_feedback,
             "queries_by_game": dict(queries_by_game),
             "feedback_by_game": dict(feedback_by_game),
-            "average_confidence": round(
-                sum(float(row.confidence or 0.0) for row in query_rows) / len(query_rows),
-                3,
-            ) if query_rows else 0.0,
-            "average_processing_time": round(
-                sum(float(row.processing_time or 0.0) for row in query_rows) / len(query_rows),
-                3,
-            ) if query_rows else 0.0,
+            "average_confidence": round(float(avg_confidence or 0.0), 3),
+            "average_processing_time": round(float(avg_processing_time or 0.0), 3),
         }
     finally:
         db.close()
@@ -303,7 +332,7 @@ async def run_demo_batch(req: DemoBatchRequest):
     try:
         results: List[DemoBatchResult] = []
         for item in req.items:
-            rag = RAGEngine(item.game_id)
+            rag = _get_demo_engine(item.game_id)
             response = await rag.query(item.question, item.user_context or {"user_id": "demo-batch"})
             results.append(
                 DemoBatchResult(

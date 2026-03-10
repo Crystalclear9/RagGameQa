@@ -49,6 +49,7 @@ def get_default_sync_queries(game_id: str) -> List[str]:
 
 class KnowledgeSyncService:
     """Fetch online game knowledge and write it into the local database."""
+    _embedding_model_cache: Dict[str, Any] = {}
 
     def __init__(self, game_id: str):
         self.game_id = game_id
@@ -59,7 +60,11 @@ class KnowledgeSyncService:
         if SentenceTransformer is None:
             return None
         try:
-            return SentenceTransformer(settings.EMBEDDING_MODEL)
+            model = self._embedding_model_cache.get(settings.EMBEDDING_MODEL)
+            if model is None:
+                model = SentenceTransformer(settings.EMBEDDING_MODEL)
+                self._embedding_model_cache[settings.EMBEDDING_MODEL] = model
+            return model
         except Exception as exc:
             logger.warning("Embedding model unavailable for knowledge sync: %s", exc)
             return None

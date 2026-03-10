@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class Reranker:
     """Improve retrieval order by semantic relevance."""
+    _model_cache: Dict[str, Any] = {}
 
     def __init__(self, game_id: str):
         self.game_id = game_id
@@ -37,8 +38,14 @@ class Reranker:
             return
 
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self.model = AutoModel.from_pretrained(self.model_name)
+            cached = self._model_cache.get(self.model_name)
+            if cached is None:
+                cached = (
+                    AutoTokenizer.from_pretrained(self.model_name),
+                    AutoModel.from_pretrained(self.model_name),
+                )
+                self._model_cache[self.model_name] = cached
+            self.tokenizer, self.model = cached
             self.available = True
         except Exception as exc:
             logger.warning("Reranker model load failed, disabled: %s", exc)

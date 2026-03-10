@@ -65,16 +65,6 @@ def _infer_sentiment(feedback_type: Optional[str], rating: Optional[int], commen
     return "neutral"
 
 
-def _in_range(created_at: Optional[datetime], start_time: Optional[datetime], end_time: Optional[datetime]) -> bool:
-    if created_at is None:
-        return False
-    if start_time and created_at < start_time:
-        return False
-    if end_time and created_at > end_time:
-        return False
-    return True
-
-
 class FeedbackAnalysisRequest(BaseModel):
     game_id: str = Field(..., description="游戏ID")
     start_time: Optional[str] = Field(None, description="开始时间ISO8601")
@@ -251,11 +241,12 @@ async def analyze_feedback(req: FeedbackAnalysisRequest):
     try:
         start_time = _parse_iso_time(req.start_time)
         end_time = _parse_iso_time(req.end_time)
-        rows = [
-            row
-            for row in db.query(Feedback).filter(Feedback.game_id == req.game_id).all()
-            if _in_range(row.created_at, start_time, end_time)
-        ]
+        query = db.query(Feedback).filter(Feedback.game_id == req.game_id)
+        if start_time:
+            query = query.filter(Feedback.created_at >= start_time)
+        if end_time:
+            query = query.filter(Feedback.created_at <= end_time)
+        rows = query.all()
 
         total = len(rows)
         pos = sum(1 for row in rows if (row.feedback_type or "").lower() == "positive")
@@ -288,16 +279,16 @@ async def get_query_stats(game_id: str = Query(..., description="游戏ID"), day
     db = SessionLocal()
     try:
         since = datetime.utcnow() - timedelta(days=days)
-        query_rows = [
-            row
-            for row in db.query(QueryLog).filter(QueryLog.game_id == game_id).all()
-            if row.created_at and row.created_at >= since
-        ]
-        feedback_rows = [
-            row
-            for row in db.query(Feedback).filter(Feedback.game_id == game_id).all()
-            if row.created_at and row.created_at >= since
-        ]
+        query_rows = (
+            db.query(QueryLog.question, QueryLog.confidence, QueryLog.processing_time, QueryLog.created_at)
+            .filter(QueryLog.game_id == game_id, QueryLog.created_at >= since)
+            .all()
+        )
+        feedback_rows = (
+            db.query(Feedback.feedback_type, Feedback.created_at)
+            .filter(Feedback.game_id == game_id, Feedback.created_at >= since)
+            .all()
+        )
 
         total_queries = len(query_rows)
         avg_confidence = round(
@@ -380,16 +371,16 @@ async def get_trends(game_id: str = Query(...), days: int = Query(7, ge=1, le=30
     db = SessionLocal()
     try:
         since = datetime.utcnow() - timedelta(days=days)
-        query_rows = [
-            row
-            for row in db.query(QueryLog).filter(QueryLog.game_id == game_id).all()
-            if row.created_at and row.created_at >= since
-        ]
-        feedback_rows = [
-            row
-            for row in db.query(Feedback).filter(Feedback.game_id == game_id).all()
-            if row.created_at and row.created_at >= since
-        ]
+        query_rows = (
+            db.query(QueryLog.created_at)
+            .filter(QueryLog.game_id == game_id, QueryLog.created_at >= since)
+            .all()
+        )
+        feedback_rows = (
+            db.query(Feedback.created_at)
+            .filter(Feedback.game_id == game_id, Feedback.created_at >= since)
+            .all()
+        )
 
         query_counter = Counter(row.created_at.strftime("%Y-%m-%d") for row in query_rows)
         feedback_counter = Counter(row.created_at.strftime("%Y-%m-%d") for row in feedback_rows)

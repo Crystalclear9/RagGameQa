@@ -1,277 +1,210 @@
 # RAG 游戏问答系统
 
-这个项目现在已经不是单纯的接口骨架了。它可以用本地知识库做检索，也可以在结果不够时联网补充；可以跑 SQLite，也可以切到 PostgreSQL；有 FastAPI 接口，也有一个能直接演示问答、反馈、模块状态和知识同步的网页控制台。
+这是一个给游戏资料问答用的 RAG 项目。现在这套代码已经把几个关键环节串起来了：本地知识库检索、联网补充、知识同步、问答反馈统计，以及一个可直接演示的 Web 界面。
 
-目前默认支持 `mock`、`gemini`、`claude`、`nim` 四种生成模式。模型密钥不再要求用户在网页里输入，而是放在本地 Python 配置文件中，已经被 `.gitignore` 忽略，不会被推到远程仓库。
+目前默认带有多款游戏的样例数据，可以直接启动体验；如果你自己补充文档或接入外部数据库，也能继续往下扩展。
 
 ## 现在能做什么
 
-- 游戏问答主链路已经打通：检索、生成、来源返回、日志记录都能跑。
-- 检索链路采用混合方案：`jieba + BM25 + 向量检索 + 可选 BERT 重排序`。
-- 数据库支持 `SQLite` 和 `PostgreSQL`，PostgreSQL 不可用时会自动回退到 SQLite。
-- 支持联网检索补充，也可以把在线资料手动或定时同步进数据库，后续问答直接复用本地文档。
-- 页面内可以直接演示问答、提交反馈、看查询统计、看模块核查、触发知识同步、配置自动同步计划。
-- 老年友好分步引导、祖孙协作模式已经接进主问答流程。
-- 支持将优先级报告预览或导出到 Jira。
-- 支持 NIM / OpenAI-compatible 推理入口。
+- 基于本地文档做游戏问答
+- 支持关键词检索、向量检索和可选重排序
+- 本地结果不足时，支持联网补充
+- 支持把联网结果写回数据库，作为后续 RAG 的知识来源
+- 支持 SQLite 和 PostgreSQL
+- 提供图形化页面、Swagger 文档和基础分析接口
+- 支持反馈收集、优先级报告和 Jira 导出
+- 保留了无障碍相关模块和多模态接口
 
-## 当前范围说明
+## 运行环境
 
-- 多模态接口已经可以通过统一 API 调用，但它更适合演示和联调，还不是面向硬件设备的大规模生产方案。
-- 爬虫同步链路已经接入，但站点解析效果仍然会受到目标页面结构变化影响。
+建议环境：
 
-## 目录说明
+- Python 3.11
+- Windows、Linux 都可以
+- 如果要接 PostgreSQL，需要本地数据库服务可用
 
-```text
-rag_game_qa_system/
-├── api/                     # FastAPI 路由
-├── config/                  # 配置、数据库、Provider
-├── core/                    # RAG 主链路、检索器、知识库工具
-├── accessibility/           # 老年友好 / 家庭协作
-├── multimodal/              # 语音、图像、触觉接口
-├── frontend/                # 网页控制台
-├── data/                    # 样例知识、展示数据、SQLite 文件
-└── scripts/                 # 建库、导数、状态检查、联网同步脚本
-```
+如果你只是想先把项目跑起来，不配置任何在线模型也没关系，系统会使用 `mock` 模式。
 
-## 1. 安装依赖
+## 快速开始
+
+### 1. 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-如果你只想先跑起来，核心依赖至少要保证这些能装上：
+### 2. 初始化数据
 
 ```bash
-pip install fastapi uvicorn sqlalchemy python-dotenv jieba requests sentence-transformers psycopg[binary]
+python scripts/init_db.py
 ```
 
-## 2. 配置模型 API
+这个脚本会初始化数据库，并导入样例游戏和样例文档。
 
-先复制一份本地配置文件：
-
-```bash
-copy config\local_provider_config.example.py config\local_provider_config.py
-```
-
-然后直接编辑 `config/local_provider_config.py`，把你的 Provider 和 Key 写进去，例如：
-
-```python
-LOCAL_PROVIDER_CONFIG = {
-    "AI_PROVIDER": "gemini",
-    "GEMINI_API_KEY": "你的 key",
-    "GEMINI_MODEL": "gemini-2.5-flash",
-}
-```
-
-如果你想用 Claude，就把 `AI_PROVIDER` 改成 `claude`，再填 `CLAUDE_API_KEY` 和模型名。
-
-如果你想用 NIM，就把 `AI_PROVIDER` 改成 `nim`，再补 `NIM_API_KEY`、`NIM_API_BASE` 和 `NIM_MODEL`。
-
-如果你要启用 Jira 导出，还可以一起补上：
-
-```python
-LOCAL_PROVIDER_CONFIG = {
-    "JIRA_BASE_URL": "https://your-domain.atlassian.net",
-    "JIRA_EMAIL": "your-email@example.com",
-    "JIRA_API_TOKEN": "your-token",
-    "JIRA_PROJECT_KEY": "RAG",
-}
-```
-
-这个文件已经在 `.gitignore` 里，不会被提交到远程仓库。
-
-## 3. 启动项目
-
-### 方案 A：先用本地 SQLite 跑通
-
-这是最省事的方式，不需要额外装数据库。
+### 3. 启动服务
 
 ```bash
 python run_server.py
 ```
 
-启动后可以访问：
+启动后默认可以访问：
 
-- 网页控制台：[http://localhost:8000/app](http://localhost:8000/app)
-- Swagger：[http://localhost:8000/docs](http://localhost:8000/docs)
-- 健康检查：[http://localhost:8000/health](http://localhost:8000/health)
+- Web 界面：`http://localhost:8000/app`
+- Swagger 文档：`http://localhost:8000/docs`
+- 健康检查：`http://localhost:8000/health`
 
-### 方案 B：使用 PostgreSQL
+## 模型和 API Key 怎么配
 
-如果本地已经有 PostgreSQL，只需要把 `DATABASE_URL` 写到 `.env` 或 `config/local_provider_config.py` 里，例如：
+项目不会要求你在网页里输入密钥。模型相关配置统一写在本地 Python 文件里：
+
+`config/local_provider_config.py`
+
+推荐做法：
+
+1. 复制一份示例文件
+2. 按你的情况填好 provider、model、api key
+3. 重启服务
+
+示例文件：
+
+`config/local_provider_config.example.py`
+
+这个本地配置文件已经被 `.gitignore` 忽略，不会被提交到远程仓库。
+
+### 一个最小配置例子
 
 ```python
 LOCAL_PROVIDER_CONFIG = {
-    "DATABASE_URL": "postgresql://postgres:password@localhost:5432/rag_game_qa",
+    "AI_PROVIDER": "gemini",
+    "GEMINI_API_KEY": "your-api-key",
+    "GEMINI_MODEL": "gemini-2.5-flash",
 }
 ```
 
-如果数据库还没建好，可以直接跑：
+如果你想用 NIM、Claude 或 Jira，也是改这个文件。
 
-```bash
-python scripts/create_postgres_db.py
-python scripts/bootstrap_external_db.py
-```
+## 数据库说明
 
-如果你本机没有 PostgreSQL，也可以先用 Docker 临时拉一个：
+项目支持两种方式：
 
-```bash
-docker run --name rag-game-qa-postgres -e POSTGRES_PASSWORD=password -e POSTGRES_DB=rag_game_qa -p 5432:5432 -d postgres:15-alpine
-```
+### SQLite
 
-然后再执行上面的建库和导数脚本。
+这是默认方案，开箱即用，适合本地开发和演示。
 
-## 4. 联网知识同步
+### PostgreSQL
 
-现在系统里有两种“联网”方式：
+如果你想把知识库、查询日志和反馈数据放到外部数据库，可以配置 PostgreSQL。
 
-1. 问答时临时联网补充。
-2. 把在线资料同步进数据库，后续问答优先走本地库。
+需要注意：
 
-### 在网页里同步
+- 本地没装 PostgreSQL 驱动时，系统会自动回退到 SQLite
+- PostgreSQL 服务不可达时，也会自动回退到 SQLite
 
-打开控制台 [http://localhost:8000/app](http://localhost:8000/app)，找到“联网知识同步”卡片，可以：
-
-- 点击“同步当前游戏”执行一次手动同步。
-- 配置自动同步开关和间隔分钟数。
-- 点击“立即执行计划”验证当前计划是否生效。
-
-### 用脚本同步
-
-```bash
-python scripts/sync_online_knowledge.py --game-id wow
-python scripts/sync_online_knowledge.py --game-id genshin --query 元素反应 --query 圣遗物 --top-k 2
-python scripts/sync_online_knowledge.py --game-id wow --include-crawler --crawler-max-pages 3
-```
-
-### 用 API 同步
-
-```bash
-curl -X POST http://localhost:8000/api/v1/project/knowledge-sync \
-  -H "Content-Type: application/json" \
-  -d "{\"game_id\":\"wow\",\"max_results_per_query\":2}"
-```
-
-### 配置自动同步计划
-
-```bash
-python scripts/configure_sync_scheduler.py --enable --interval 30 --game-id wow --run-now
-```
-
-或者直接调用：
-
-```bash
-curl -X POST http://localhost:8000/api/v1/project/knowledge-sync/scheduler \
-  -H "Content-Type: application/json" \
-  -d "{\"enabled\":true,\"interval_minutes\":30,\"game_ids\":[\"wow\"],\"max_results_per_query\":2}"
-```
-
-## 5. Jira 导出
-
-如果已经在 `config/local_provider_config.py` 里填好了 Jira 配置，可以直接把反馈优先级报告导出成工单。
-
-### 先预览
-
-```bash
-python scripts/export_priority_to_jira.py --game-id wow
-```
-
-### 真正创建工单
-
-```bash
-python scripts/export_priority_to_jira.py --game-id wow --create
-```
-
-或者调用 API：
-
-```bash
-curl -X POST http://localhost:8000/api/v1/analytics/jira/export \
-  -H "Content-Type: application/json" \
-  -d "{\"game_id\":\"wow\",\"limit\":3,\"dry_run\":false}"
-```
-
-## 6. 常用接口
-
-### 提问
-
-```bash
-curl -X POST http://localhost:8000/api/v1/qa/ask \
-  -H "Content-Type: application/json" \
-  -d "{\"game_id\":\"wow\",\"question\":\"战士如何学习技能？\",\"enable_web_retrieval\":true}"
-```
-
-### 查看项目总览
-
-```bash
-curl http://localhost:8000/api/v1/project/overview
-```
-
-### 查看数据库状态
+常用检查命令：
 
 ```bash
 python scripts/check_db_status.py
 ```
 
-### 查看 Jira 状态
+如果你准备启用 PostgreSQL，可以看看这些脚本：
+
+- `python scripts/create_postgres_db.py`
+- `python scripts/bootstrap_external_db.py`
+- `python scripts/setup_database.py`
+
+## 联网知识同步
+
+这部分已经接上主流程了，不只是“联网查一下”，而是可以把联网抓到的内容落到库里，之后继续参与 RAG 检索。
+
+常用脚本：
 
 ```bash
-curl http://localhost:8000/api/v1/analytics/jira/status
+python scripts/sync_online_knowledge.py
 ```
 
-## 7. 页面里可以直接看的东西
+图形界面里也可以直接操作：
 
-- 系统当前用的 Provider 和模型
-- 数据库后端、是否回退到 SQLite
-- 当前知识库覆盖情况
-- 模块实现状态核查
-- 批量演示问题
-- 查询统计、反馈统计、高频问题、优先级报告
-- 联网知识是否已经同步入库
-- 自动同步计划状态
-- Jira 是否已配置、当前游戏能导出哪些工单
+- 同步当前游戏
+- 保存自动同步计划
+- 手动立即执行同步计划
 
-## 8. 排错建议
+## 常用脚本
 
-### 看到 `No module named 'psycopg2'`
+下面这些脚本现在都还有实际用途：
 
-这通常只是说明 PostgreSQL 驱动没装好，系统会退回 SQLite。想启用 PostgreSQL，安装下面任意一个即可：
+| 脚本 | 作用 |
+| --- | --- |
+| `python scripts/init_db.py` | 初始化数据库和样例数据 |
+| `python scripts/check_db_status.py` | 查看当前数据库连接状态 |
+| `python scripts/test_all.py` | 跑一轮完整自检 |
+| `python scripts/test_api.py` | 测试主要 API |
+| `python scripts/sync_online_knowledge.py` | 把在线资料同步进知识库 |
+| `python scripts/configure_sync_scheduler.py` | 配置自动同步计划 |
+| `python scripts/export_priority_to_jira.py` | 导出反馈优先级到 Jira |
+
+## 目录结构
+
+```text
+api/            FastAPI 入口和各类路由
+accessibility/  分步引导、老年友好、家庭协作
+config/         配置、数据库、运行时设置
+core/           RAG 主流程、检索、生成、知识同步
+data/           样例数据、本地数据库、爬虫来源
+frontend/       Web 页面
+integrations/   外部系统集成，目前主要是 Jira
+multimodal/     语音、图像、触觉等模块
+scripts/        初始化、测试、运维脚本
+utils/          通用工具函数
+deployment/     Docker 部署文件
+```
+
+## 当前项目里哪些内容是真正需要的
+
+如果只看“运行这套系统”本身，核心需要的是：
+
+- `api/`
+- `accessibility/`
+- `config/`
+- `core/`
+- `data/`
+- `frontend/`
+- `integrations/`
+- `multimodal/`
+- `utils/`
+- `run_server.py`
+- `requirements.txt`
+
+下面这些更偏开发辅助，不影响主程序启动：
+
+- `scripts/`
+- `deployment/`
+- `.env.example`
+- `README.md`
+
+另外有两类内容不属于项目源码本体：
+
+- `.venv/`
+- 所有 `__pycache__/`
+
+它们是本地环境和运行缓存，本地可以保留，但不建议继续作为仓库内容的一部分。
+
+## 已知情况
+
+- 没有外部数据库时，系统会回退到 SQLite，这属于正常行为
+- 没有在线模型 API Key 时，系统会走 `mock` 模式
+- 如果环境里缺少 `sentence-transformers`，向量检索会降级，但服务仍然能启动
+
+## 一个最常见的使用流程
 
 ```bash
-pip install psycopg[binary]
+pip install -r requirements.txt
+python scripts/init_db.py
+python run_server.py
 ```
 
-或：
+然后：
 
-```bash
-pip install psycopg2-binary
-```
-
-### 服务启动后马上退出
-
-先检查：
-
-```bash
-python scripts/check_db_status.py
-```
-
-再确认：
-
-- `config/local_provider_config.py` 语法没有写错
-- `DATABASE_URL` 如果是 PostgreSQL，数据库真的已经启动
-- 本地端口 `8000` 没被别的程序占用
-
-## 9. 一个更实际的使用顺序
-
-1. 先配置好 `config/local_provider_config.py`。
-2. 跑 `python run_server.py`。
-3. 打开 [http://localhost:8000/app](http://localhost:8000/app)。
-4. 先在“联网知识同步”里给目标游戏同步一轮资料。
-5. 如果要长期演示，再把自动同步计划开起来。
-6. 再到“问答演示”里提问题。
-7. 根据结果提交反馈，页面右侧看统计变化。
-8. 如果需要把问题交给开发流程处理，就去 Jira 卡片里预览或创建工单。
-
-## 10. 说明
-
-这个仓库现在已经把“只是接口壳子”和“真正能跑的 RAG 演示系统”区分开了。核心问答、数据库、联网补充、自动同步、Jira 导出和模型切换都已经落到代码和页面里；剩下需要继续打磨的，主要是多模态细节和特定站点爬虫适配质量。
+1. 打开 `http://localhost:8000/app`
+2. 先用默认样例数据体验问答
+3. 如果需要真实模型，再去补 `config/local_provider_config.py`
+4. 如果需要更完整的知识库，再跑联网同步

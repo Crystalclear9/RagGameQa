@@ -2,17 +2,60 @@ from __future__ import annotations
 
 import importlib
 import logging
-from typing import Any, Dict, List, Optional
+from collections import OrderedDict
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from accessibility.elderly_support.step_guide import StepGuide
+from config.settings import settings
 from core.rag_engine import RAGEngine
 from utils.security import redact_sensitive_text
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+_ENGINE_CACHE: "OrderedDict[Tuple[str, str, str, str, bool], RAGEngine]" = OrderedDict()
+_STEP_GUIDE_CACHE: Dict[str, StepGuide] = {}
+
+
+def _current_model_name() -> str:
+    provider = (settings.AI_PROVIDER or "mock").lower()
+    if provider == "gemini":
+        return settings.GEMINI_MODEL
+    if provider == "claude":
+        return settings.CLAUDE_MODEL
+    if provider == "nim":
+        return settings.NIM_MODEL
+    return "mock-llm-v1"
+
+
+def _get_rag_engine(game_id: str) -> RAGEngine:
+    key = (
+        game_id,
+        str(settings.AI_PROVIDER or "mock").lower(),
+        _current_model_name(),
+        str(settings.RAG_DATA_MODE or "database"),
+        bool(settings.ENABLE_BERT_RERANKER),
+    )
+    cached = _ENGINE_CACHE.get(key)
+    if cached is not None:
+        _ENGINE_CACHE.move_to_end(key)
+        return cached
+
+    engine = RAGEngine(game_id)
+    _ENGINE_CACHE[key] = engine
+    if len(_ENGINE_CACHE) > 8:
+        _ENGINE_CACHE.popitem(last=False)
+    return engine
+
+
+def _get_step_guide(game_id: str) -> StepGuide:
+    guide = _STEP_GUIDE_CACHE.get(game_id)
+    if guide is None:
+        guide = StepGuide(game_id)
+        _STEP_GUIDE_CACHE[game_id] = guide
+    return guide
 
 
 def _optional_class(module_name: str, class_name: str):
@@ -72,7 +115,7 @@ async def ask_question(request: QuestionRequest):
         if not request.game_id.strip():
             raise HTTPException(status_code=400, detail="game_id cannot be empty")
 
-        rag = RAGEngine(request.game_id)
+        rag = _get_rag_engine(request.game_id)
         result = await rag.query(
             request.question,
             request.user_context or {},
@@ -103,7 +146,7 @@ async def ask_question(request: QuestionRequest):
 
         auto_guide_requested = bool(metadata.get("patience_analysis", {}).get("needs_guidance"))
         if request.include_assistive_guide or user_type != "normal" or auto_guide_requested:
-            guide = StepGuide(request.game_id)
+            guide = _get_step_guide(request.game_id)
             metadata["assistive_guide"] = await guide.generate_guide(
                 request.question,
                 user_context,
@@ -158,7 +201,7 @@ async def ask_question(request: QuestionRequest):
 @router.post("/assistive-guide", response_model=AssistiveGuideResponse)
 async def generate_assistive_guide(request: AssistiveGuideRequest):
     try:
-        guide = StepGuide(request.game_id)
+        guide = _get_step_guide(request.game_id)
         steps = await guide.generate_guide(
             request.question,
             request.user_context,

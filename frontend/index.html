@@ -9,11 +9,11 @@
 </head>
 <body>
   <main class="layout">
-    <section class="hero panel">
+    <section class="hero panel panel-hero">
       <div class="hero-copy-block">
         <p class="eyebrow">RAG Game QA System</p>
-        <h1 id="heroTitle">基于检索增强生成的游戏类问答智能体</h1>
-        <p id="heroSubtitle" class="hero-copy">正在加载系统概览与模块状态...</p>
+        <h1 id="heroTitle">RAG 游戏问答系统</h1>
+        <p id="heroSubtitle" class="hero-copy">问答、知识同步与反馈分析控制台</p>
         <div id="heroChips" class="chip-row"></div>
       </div>
       <div class="hero-actions">
@@ -23,7 +23,14 @@
       </div>
     </section>
 
-    <section class="summary-grid">
+    <nav class="section-nav panel" aria-label="页面导航">
+      <a href="#overviewSection" class="nav-link is-active">系统概览</a>
+      <a href="#syncSection" class="nav-link">知识同步</a>
+      <a href="#qaSection" class="nav-link">问答演示</a>
+      <a href="#dashboardSection" class="nav-link">数据看板</a>
+    </nav>
+
+    <section id="overviewSection" class="summary-grid">
       <article class="panel card">
         <div class="panel-header">
           <h2>系统概览</h2>
@@ -57,7 +64,7 @@
       </article>
     </section>
 
-    <section class="deep-grid">
+    <section id="syncSection" class="deep-grid">
       <article class="panel card">
         <div class="panel-header">
           <h2>架构设计</h2>
@@ -88,7 +95,6 @@
           <span id="providerStatusBadge" class="metric-chip">读取中</span>
         </div>
         <div class="config-guide">
-          <p class="subtle">模型 API Key 现在通过 Python 配置文件填写，不再要求用户在网页中输入。</p>
           <div class="meta-row" id="providerSnapshot"></div>
           <div class="detail-item config-path-card">
             <span>配置文件</span>
@@ -104,7 +110,6 @@
           <h2>联网知识同步</h2>
           <span id="syncStatusChip" class="metric-chip">读取中</span>
         </div>
-        <p class="subtle">把在线资料写入数据库后，后续问答会优先命中本地知识库，不需要每次都临时联网。</p>
         <div id="syncStats" class="mini-stats"></div>
         <div class="sync-controls">
           <label class="compact-control">
@@ -130,7 +135,6 @@
           <h2>Jira 联动</h2>
           <span id="jiraStatusChip" class="metric-chip">读取中</span>
         </div>
-        <p class="subtle">可以把当前反馈优先级报告导出成 Jira 工单；如果还没填 Jira 配置，也能先预览会生成哪些工单。</p>
         <div id="jiraStats" class="mini-stats"></div>
         <div class="hero-actions">
           <button id="previewJiraExport" class="secondary-button" type="button">预览当前游戏导出</button>
@@ -148,18 +152,18 @@
       <div id="moduleAuditGrid" class="audit-grid"></div>
     </section>
 
-    <section class="panel demo-panel">
+    <section class="panel demo-panel panel-demo">
       <div class="panel-header">
         <h2>示例问题</h2>
         <span class="metric-chip">一键填充 / 批量演示</span>
       </div>
       <div id="demoScenarioButtons" class="scenario-row"></div>
       <div id="batchDemoResults" class="batch-results">
-        <p class="subtle">点击上方示例可自动填入问答区，也可以运行批量演示。</p>
+        <p class="subtle">点击即可快速填充，也可以直接运行整组示例。</p>
       </div>
     </section>
 
-    <section class="question-panel panel">
+    <section id="qaSection" class="question-panel panel panel-form">
       <div class="panel-header">
         <h2>问答演示</h2>
         <span id="statusBadge" class="status-badge">待提问</span>
@@ -226,8 +230,8 @@
       </form>
     </section>
 
-    <section class="content-grid">
-      <article class="panel answer-panel">
+    <section id="dashboardSection" class="content-grid">
+      <article class="panel answer-panel panel-answer">
         <div class="panel-header">
           <h2>回答结果</h2>
           <span id="confidenceChip" class="metric-chip">置信度 --</span>
@@ -257,7 +261,7 @@
 
         <section class="subpanel feedback-panel">
           <h3>反馈闭环</h3>
-          <p class="subtle">每次反馈都会进入本地分析链路，用于统计与优先级分析。</p>
+          <p class="subtle">反馈会直接进入统计和优先级分析。</p>
           <div class="rating-row" id="ratingRow">
             <button type="button" class="rating-button" data-rating="5">很有帮助</button>
             <button type="button" class="rating-button" data-rating="4">基本可用</button>
@@ -270,7 +274,7 @@
         </section>
       </article>
 
-      <aside class="panel dashboard-panel">
+      <aside class="panel dashboard-panel panel-dashboard">
         <div class="panel-header">
           <h2>实时数据看板</h2>
           <button id="refreshDashboard" class="text-button" type="button">刷新</button>

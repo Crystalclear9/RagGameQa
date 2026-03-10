@@ -14,6 +14,7 @@
 """
 
 import sys
+import os
 from pathlib import Path
 import time
 import subprocess
@@ -37,8 +38,11 @@ def run_test_script(script_name, description):
             [sys.executable, f"scripts/{script_name}"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=120,
-            cwd=root_dir
+            cwd=root_dir,
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
         )
         
         if result.returncode == 0:
