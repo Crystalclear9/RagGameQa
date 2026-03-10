@@ -1,20 +1,15 @@
-"""本地 Python Provider 配置示例。
+"""Local Python provider config example.
 
-复制为 `config/local_provider_config.py` 后，在这个文件里直接填写你的真实 API Key。
-该文件已被 `.gitignore` 忽略，不会被提交到仓库。
+Copy this to `config/local_provider_config.py` and put real keys there.
+Only placeholder values are allowed in this tracked example file.
 """
 
 LOCAL_PROVIDER_CONFIG = {
-    # 可选: mock / gemini / claude
-    "AI_PROVIDER": "mock",
-
-    # Gemini
-    "GEMINI_API_KEY": "",
+    "AI_PROVIDER": "gemini",
+    "GEMINI_API_KEY": "your-gemini-api-key",
     "GEMINI_MODEL": "gemini-2.5-flash",
     "GEMINI_API_BASE": "https://generativelanguage.googleapis.com/v1beta",
-
-    # Claude
-    "CLAUDE_API_KEY": "",
+    "CLAUDE_API_KEY": "your-claude-api-key",
     "CLAUDE_MODEL": "claude-sonnet-4-6",
     "CLAUDE_API_BASE": "https://api.anthropic.com",
     "CLAUDE_API_VERSION": "2023-06-01",
