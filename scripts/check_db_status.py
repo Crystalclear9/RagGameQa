@@ -31,6 +31,7 @@ def main() -> int:
         print(f"  games: {db.query(Game).count()}")
         print(f"  documents: {db.query(Document).count()}")
         print(f"  web_sync_documents: {db.query(Document).filter(Document.category == 'web_sync').count()}")
+        print(f"  crawler_sync_documents: {db.query(Document).filter(Document.category == 'crawler_sync').count()}")
         print(f"  query_logs: {db.query(QueryLog).count()}")
     except Exception as exc:
         print(f"[ERROR] Read counts failed: {exc}")

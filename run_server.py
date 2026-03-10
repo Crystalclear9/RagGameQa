@@ -30,6 +30,8 @@ try:
     print(f"[OK] HOST: {settings.API_HOST}")
     print(f"[OK] PORT: {settings.API_PORT}")
     print(f"[OK] WEB_RETRIEVAL: {settings.ENABLE_WEB_RETRIEVAL}")
+    print(f"[OK] AUTO_SYNC: {settings.KNOWLEDGE_SYNC_SCHEDULER_ENABLED}")
+    print(f"[OK] JIRA_CONFIGURED: {bool(settings.JIRA_BASE_URL and settings.JIRA_PROJECT_KEY)}")
 
     db_state = database_status()
     print(f"[OK] DB_BACKEND: {db_state.get('backend')}")
@@ -44,6 +46,8 @@ try:
     print(f"[INFO] Web UI: http://localhost:{settings.API_PORT}/app")
     print(f"[INFO] Health: http://localhost:{settings.API_PORT}/health")
     print(f"[INFO] Knowledge Sync: http://localhost:{settings.API_PORT}/api/v1/project/knowledge-sync")
+    print(f"[INFO] Sync Scheduler: http://localhost:{settings.API_PORT}/api/v1/project/knowledge-sync/scheduler")
+    print(f"[INFO] Jira Export: http://localhost:{settings.API_PORT}/api/v1/analytics/jira/export")
     print("\n" + "-" * 60)
     print("[INFO] Press Ctrl+C to stop")
     print("-" * 60 + "\n")

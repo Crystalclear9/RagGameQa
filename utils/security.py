@@ -15,6 +15,10 @@ SENSITIVE_FIELD_NAMES = {
     "secret_key",
     "cookie",
     "set_cookie",
+    "gemini_api_key",
+    "claude_api_key",
+    "nim_api_key",
+    "jira_api_token",
 }
 
 PII_FIELD_NAMES = {
@@ -88,4 +92,3 @@ def sanitize_user_context(user_context: Dict[str, Any] | None) -> Dict[str, Any]
             continue
         sanitized[key] = redact_sensitive_text(value)
     return sanitized
-

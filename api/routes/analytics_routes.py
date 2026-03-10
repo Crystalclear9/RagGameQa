@@ -1,6 +1,7 @@
 # 分析路由
 from __future__ import annotations
 
+import logging
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -9,9 +10,12 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from config.database import Feedback, QueryLog, SessionLocal, ensure_game_record
+from integrations.jira_client import JiraClient
+from utils.security import redact_sensitive_text
 from utils.text_utils import TextUtils
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 LABEL_KEYWORDS = {
     "bug_report": ["bug", "异常", "报错", "崩溃", "卡住", "闪退", "无法"],
@@ -150,6 +154,61 @@ class PriorityItem(BaseModel):
     title: str
     score: float
     label: str
+
+
+class JiraStatusResponse(BaseModel):
+    configured: bool
+    base_url: str
+    email_masked: str
+    api_token_configured: bool
+    project_key: str
+    issue_type: str
+    label_prefix: str
+
+
+class JiraExportRequest(BaseModel):
+    game_id: str = Field(..., description="游戏 ID")
+    limit: int = Field(default=3, ge=1, le=10, description="最多导出的优先级项数量")
+    dry_run: bool = Field(default=True, description="是否仅预览，不真正创建 Jira 工单")
+
+
+class JiraExportIssue(BaseModel):
+    summary: str
+    label: str
+    score: float
+    created: bool
+    jira_key: Optional[str] = None
+    jira_url: Optional[str] = None
+
+
+class JiraExportResponse(BaseModel):
+    configured: bool
+    dry_run: bool
+    issue_count: int
+    issues: List[JiraExportIssue]
+
+
+def _build_priority_items(rows: List[Feedback]) -> List[PriorityItem]:
+    summary: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"count": 0, "negative": 0, "keywords": []})
+
+    for row in rows:
+        label, _ = _classify_feedback_text(row.comment or "")
+        summary[label]["count"] += 1
+        if row.feedback_type == "negative":
+            summary[label]["negative"] += 1
+        summary[label]["keywords"].extend(TextUtils.extract_keywords(row.comment or "", top_k=3))
+
+    items: List[PriorityItem] = []
+    for label, stats in summary.items():
+        count = stats["count"]
+        negative_boost = 1 + min(stats["negative"] * 0.1, 0.5)
+        score = round(count * LABEL_WEIGHTS.get(label, 0.4) * negative_boost, 2)
+        keywords = Counter(stats["keywords"]).most_common(2)
+        keyword_hint = " / ".join(word for word, _ in keywords) if keywords else label
+        items.append(PriorityItem(title=keyword_hint, score=score, label=label))
+
+    items.sort(key=lambda item: item.score, reverse=True)
+    return items or [PriorityItem(title="暂无反馈", score=0.0, label="general_question")]
 
 
 @router.post("/feedback", response_model=FeedbackCreateResponse)
@@ -354,27 +413,90 @@ async def get_priority_report(game_id: str = Query(...)):
     db = SessionLocal()
     try:
         rows = db.query(Feedback).filter(Feedback.game_id == game_id).all()
-        summary: Dict[str, Dict[str, Any]] = defaultdict(lambda: {"count": 0, "negative": 0, "keywords": []})
-
-        for row in rows:
-            label, _ = _classify_feedback_text(row.comment or "")
-            summary[label]["count"] += 1
-            if row.feedback_type == "negative":
-                summary[label]["negative"] += 1
-            summary[label]["keywords"].extend(TextUtils.extract_keywords(row.comment or "", top_k=3))
-
-        items: List[PriorityItem] = []
-        for label, stats in summary.items():
-            count = stats["count"]
-            negative_boost = 1 + min(stats["negative"] * 0.1, 0.5)
-            score = round(count * LABEL_WEIGHTS.get(label, 0.4) * negative_boost, 2)
-            keywords = Counter(stats["keywords"]).most_common(2)
-            keyword_hint = " / ".join(word for word, _ in keywords) if keywords else label
-            items.append(PriorityItem(title=keyword_hint, score=score, label=label))
-
-        items.sort(key=lambda item: item.score, reverse=True)
-        return items or [PriorityItem(title="暂无反馈", score=0.0, label="general_question")]
+        return _build_priority_items(rows)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"优先级报告生成失败: {exc}")
+    finally:
+        db.close()
+
+
+@router.get("/jira/status", response_model=JiraStatusResponse)
+async def get_jira_status():
+    try:
+        client = JiraClient()
+        return JiraStatusResponse(**client.get_status())
+    except Exception as exc:
+        logger.error("Jira status failed: %s", redact_sensitive_text(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail="Jira 状态读取失败")
+
+
+@router.post("/jira/export", response_model=JiraExportResponse)
+async def export_priority_report_to_jira(req: JiraExportRequest):
+    db = SessionLocal()
+    try:
+        client = JiraClient()
+        rows = db.query(Feedback).filter(Feedback.game_id == req.game_id).all()
+        priority_items = _build_priority_items(rows)[: req.limit]
+
+        comments_by_label: Dict[str, List[str]] = defaultdict(list)
+        for row in rows:
+            label, _ = _classify_feedback_text(row.comment or "")
+            if row.comment and len(comments_by_label[label]) < 3:
+                comments_by_label[label].append(row.comment.strip())
+
+        issues: List[JiraExportIssue] = []
+        for item in priority_items:
+            summary = f"[{req.game_id}] {item.label} - {item.title}"
+            description_lines = [
+                f"游戏 ID：{req.game_id}",
+                f"优先级标签：{item.label}",
+                f"评分：{item.score}",
+                "来自 RAG 游戏问答系统的反馈优先级导出。",
+                "",
+                "示例反馈：",
+            ]
+            description_lines.extend(
+                f"- {comment}" for comment in comments_by_label.get(item.label, []) or ["暂无用户评论样本"]
+            )
+            description = "\n".join(description_lines)
+
+            if req.dry_run or not client.is_configured():
+                issues.append(
+                    JiraExportIssue(
+                        summary=summary,
+                        label=item.label,
+                        score=item.score,
+                        created=False,
+                    )
+                )
+                continue
+
+            created = client.create_issue(
+                summary=summary,
+                description=description,
+                labels=[client.label_prefix, f"{client.label_prefix}-{req.game_id}", f"{client.label_prefix}-{item.label}"],
+            )
+            issues.append(
+                JiraExportIssue(
+                    summary=summary,
+                    label=item.label,
+                    score=item.score,
+                    created=True,
+                    jira_key=created.get("key"),
+                    jira_url=created.get("url"),
+                )
+            )
+
+        return JiraExportResponse(
+            configured=client.is_configured(),
+            dry_run=req.dry_run,
+            issue_count=len(issues),
+            issues=issues,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        logger.error("Jira export failed: %s", redact_sensitive_text(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail="Jira 导出失败")
     finally:
         db.close()

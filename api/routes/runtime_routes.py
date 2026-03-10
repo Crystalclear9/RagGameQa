@@ -21,7 +21,7 @@ router = APIRouter()
 
 
 class ProviderConfigRequest(BaseModel):
-    provider: str = Field(..., description="mock | gemini | claude")
+    provider: str = Field(..., description="mock | gemini | claude | nim")
     api_key: Optional[str] = Field(default=None, description="新的 API Key，可留空表示沿用当前配置")
     model: Optional[str] = Field(default=None, description="模型名称，可自定义填写最新模型 ID")
     persist_to_env: bool = Field(default=False, description="兼容旧参数，等价于 storage_mode=env")
@@ -42,7 +42,7 @@ class ProviderConfigResponse(BaseModel):
 
 
 class ProviderTestRequest(BaseModel):
-    provider: str = Field(..., description="mock | gemini | claude")
+    provider: str = Field(..., description="mock | gemini | claude | nim")
     api_key: Optional[str] = Field(default=None, description="测试时使用的 API Key")
     model: Optional[str] = Field(default=None, description="测试时使用的模型")
 

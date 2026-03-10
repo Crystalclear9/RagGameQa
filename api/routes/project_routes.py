@@ -17,7 +17,9 @@ from core.knowledge_base.knowledge_sync import (
     build_sync_status,
     get_default_sync_queries,
 )
+from core.knowledge_base.sync_scheduler import knowledge_sync_scheduler
 from core.rag_engine import RAGEngine
+from integrations.jira_client import JiraClient
 from utils.security import redact_sensitive_text
 
 logger = logging.getLogger(__name__)
@@ -123,6 +125,7 @@ def _build_runtime_metrics() -> Dict[str, Any]:
         queries_by_game = Counter(row.game_id or "unknown" for row in query_rows)
         feedback_by_game = Counter(row.game_id or "unknown" for row in feedback_rows)
         provider_snapshot = get_provider_snapshot()
+        scheduler_status = knowledge_sync_scheduler.get_status()
         return {
             "database": database_status(),
             "ai_provider": provider_snapshot["provider"],
@@ -132,6 +135,9 @@ def _build_runtime_metrics() -> Dict[str, Any]:
             "web_retrieval_enabled": settings.ENABLE_WEB_RETRIEVAL,
             "web_retrieval_trigger_doc_count": settings.WEB_RETRIEVAL_TRIGGER_DOC_COUNT,
             "web_retrieval_max_results": settings.WEB_RETRIEVAL_MAX_RESULTS,
+            "knowledge_sync_scheduler_enabled": scheduler_status.get("enabled", False),
+            "knowledge_sync_interval_minutes": scheduler_status.get("interval_minutes", settings.KNOWLEDGE_SYNC_INTERVAL_MINUTES),
+            "jira_configured": JiraClient().is_configured(),
             "python_config_file": str(LOCAL_PROVIDER_CONFIG_PATH.relative_to(PROJECT_ROOT)),
             "python_config_exists": LOCAL_PROVIDER_CONFIG_PATH.exists(),
             "storage_mode": provider_snapshot["storage_mode"],
@@ -179,6 +185,19 @@ class KnowledgeSyncRequest(BaseModel):
     game_id: str = Field(..., description="游戏 ID")
     queries: Optional[List[str]] = Field(default=None, description="自定义联网查询词")
     max_results_per_query: int = Field(default=2, ge=1, le=5, description="每个查询拉取的结果数")
+    include_crawler: bool = Field(default=False, description="是否同时尝试爬虫源")
+    crawler_max_pages: int = Field(default=3, ge=1, le=20, description="爬虫最大页数")
+
+
+class KnowledgeSyncSchedulerRequest(BaseModel):
+    enabled: bool = Field(..., description="是否启用自动同步")
+    interval_minutes: int = Field(default=60, ge=5, le=1440, description="同步间隔，单位分钟")
+    game_ids: List[str] = Field(default_factory=lambda: ["wow", "lol", "genshin"], description="要同步的游戏 ID")
+    max_results_per_query: int = Field(default=2, ge=1, le=5, description="每个查询同步的文档数")
+
+
+class KnowledgeSyncSchedulerRunRequest(BaseModel):
+    game_ids: Optional[List[str]] = Field(default=None, description="临时指定执行的游戏 ID 列表")
 
 
 @router.get("/overview")
@@ -189,6 +208,8 @@ async def get_project_overview():
             **showcase,
             "knowledge_coverage": _build_knowledge_coverage(),
             "knowledge_sync": build_sync_status(),
+            "knowledge_sync_scheduler": knowledge_sync_scheduler.get_status(),
+            "jira": JiraClient().get_status(),
             "runtime_metrics": _build_runtime_metrics(),
         }
     except Exception as exc:
@@ -220,6 +241,7 @@ async def get_module_audit():
 async def get_knowledge_sync_status(game_id: Optional[str] = None):
     try:
         status = build_sync_status(game_id)
+        status["scheduler"] = knowledge_sync_scheduler.get_status()
         if game_id:
             status["game_id"] = game_id
             status["default_queries"] = get_default_sync_queries(game_id)
@@ -233,10 +255,47 @@ async def get_knowledge_sync_status(game_id: Optional[str] = None):
 async def run_knowledge_sync(req: KnowledgeSyncRequest):
     try:
         service = KnowledgeSyncService(req.game_id)
-        return await service.sync(req.queries, req.max_results_per_query)
+        return await service.sync(
+            req.queries,
+            req.max_results_per_query,
+            include_crawler=req.include_crawler,
+            crawler_max_pages=req.crawler_max_pages,
+        )
     except Exception as exc:
         logger.error("Knowledge sync failed: %s", redact_sensitive_text(exc), exc_info=True)
         raise HTTPException(status_code=500, detail="联网知识同步失败")
+
+
+@router.get("/knowledge-sync/scheduler")
+async def get_knowledge_sync_scheduler():
+    try:
+        return knowledge_sync_scheduler.get_status()
+    except Exception as exc:
+        logger.error("Knowledge sync scheduler status failed: %s", redact_sensitive_text(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail="自动同步状态读取失败")
+
+
+@router.post("/knowledge-sync/scheduler")
+async def configure_knowledge_sync_scheduler(req: KnowledgeSyncSchedulerRequest):
+    try:
+        return await knowledge_sync_scheduler.configure(
+            enabled=req.enabled,
+            interval_minutes=req.interval_minutes,
+            game_ids=req.game_ids,
+            max_results_per_query=req.max_results_per_query,
+        )
+    except Exception as exc:
+        logger.error("Knowledge sync scheduler update failed: %s", redact_sensitive_text(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail="自动同步配置失败")
+
+
+@router.post("/knowledge-sync/scheduler/run")
+async def run_knowledge_sync_scheduler_once(req: KnowledgeSyncSchedulerRunRequest):
+    try:
+        return await knowledge_sync_scheduler.run_once(game_ids=req.game_ids)
+    except Exception as exc:
+        logger.error("Knowledge sync scheduler manual run failed: %s", redact_sensitive_text(exc), exc_info=True)
+        raise HTTPException(status_code=500, detail="自动同步手动执行失败")
 
 
 @router.post("/demo-batch", response_model=DemoBatchResponse)

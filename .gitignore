@@ -11,3 +11,4 @@ config/local_provider_config*.py
 !config/local_provider_config.example.py
 data/*.db
 data/runtime_secure_store.json
+data/knowledge_sync_scheduler.json

@@ -27,8 +27,17 @@ const refs = {
   syncStatusChip: document.getElementById("syncStatusChip"),
   syncStats: document.getElementById("syncStats"),
   syncSelectedGame: document.getElementById("syncSelectedGame"),
+  syncSchedulerEnabled: document.getElementById("syncSchedulerEnabled"),
+  syncInterval: document.getElementById("syncInterval"),
+  syncRunScheduled: document.getElementById("syncRunScheduled"),
+  saveSyncSchedule: document.getElementById("saveSyncSchedule"),
   refreshSyncStatus: document.getElementById("refreshSyncStatus"),
   syncMessage: document.getElementById("syncMessage"),
+  jiraStatusChip: document.getElementById("jiraStatusChip"),
+  jiraStats: document.getElementById("jiraStats"),
+  previewJiraExport: document.getElementById("previewJiraExport"),
+  createJiraExport: document.getElementById("createJiraExport"),
+  jiraMessage: document.getElementById("jiraMessage"),
   moduleAuditGrid: document.getElementById("moduleAuditGrid"),
   demoScenarioButtons: document.getElementById("demoScenarioButtons"),
   batchDemoResults: document.getElementById("batchDemoResults"),
@@ -139,6 +148,8 @@ function renderRuntime(overview) {
     ["当前模型", runtime.model ?? "--", "由 Python 配置文件或运行时配置决定"],
     ["数据库后端", database.backend ?? "--", database.active_url || "未识别到连接串"],
     ["联网检索", runtime.web_retrieval_enabled ? "enabled" : "disabled", `触发阈值 ${runtime.web_retrieval_trigger_doc_count ?? "--"} 条`],
+    ["自动同步", runtime.knowledge_sync_scheduler_enabled ? "enabled" : "disabled", `间隔 ${runtime.knowledge_sync_interval_minutes ?? "--"} 分钟`],
+    ["Jira 联动", runtime.jira_configured ? "configured" : "not configured", "可把优先级报告导出成 Jira 工单"],
     ["配置文件", runtime.python_config_file ?? "--", runtime.python_config_exists ? "本地 Python 配置文件存在" : "请按示例创建配置文件"],
     ["平均耗时", `${runtime.average_processing_time ?? 0}s`, "按最近查询统计"],
   ];
@@ -216,6 +227,7 @@ function renderPythonConfig(overview) {
 
 function renderKnowledgeSync(overview) {
   const sync = overview.knowledge_sync || {};
+  const scheduler = overview.knowledge_sync_scheduler || sync.scheduler || {};
   const games = sync.games || [];
   refs.syncStatusChip.textContent = sync.total_synced_docs
     ? `已同步 ${sync.total_synced_docs} 篇`
@@ -230,10 +242,35 @@ function renderKnowledgeSync(overview) {
     ["在线文档", sync.total_synced_docs ?? 0, "已经写入数据库的联网资料数量"],
     ["最近同步", sync.last_sync_at ? sync.last_sync_at.replace("T", " ").slice(0, 19) : "--", "最后一次成功落库时间"],
     ["覆盖游戏", games.length || 0, topGames || "还没有同步记录"],
+    ["自动计划", scheduler.running ? "运行中" : (scheduler.enabled ? "已启用" : "未启用"), scheduler.next_run_at ? `下次 ${scheduler.next_run_at.replace("T", " ").slice(0, 19)}` : "点击下方按钮开始设置"],
     ["默认来源", (sync.recent_sources || []).length ? "Wiki / Wikipedia" : "--", (sync.recent_sources || []).slice(0, 2).join(" | ") || "点击下方按钮开始同步"],
   ];
 
   refs.syncStats.innerHTML = entries
+    .map(
+      ([label, value, desc]) => `
+        <div class="mini-stat">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(value)}</strong>
+          <p>${escapeHtml(desc)}</p>
+        </div>
+      `,
+    )
+    .join("");
+
+  refs.syncSchedulerEnabled.checked = Boolean(scheduler.enabled);
+  refs.syncInterval.value = scheduler.interval_minutes || 60;
+}
+
+function renderJira(overview) {
+  const jira = overview.jira || {};
+  refs.jiraStatusChip.textContent = jira.configured ? "已配置" : "未配置";
+  refs.jiraStats.innerHTML = [
+    ["连接状态", jira.configured ? "ready" : "missing", jira.base_url || "请在本地 Python 配置里填写 Jira 地址"],
+    ["项目 Key", jira.project_key || "--", jira.issue_type ? `默认类型 ${jira.issue_type}` : "未设置"],
+    ["账号", jira.email_masked || "--", jira.api_token_configured ? "Token 已配置" : "Token 未配置"],
+    ["标签前缀", jira.label_prefix || "rag-feedback", "导出时会自动打上这组标签"],
+  ]
     .map(
       ([label, value, desc]) => `
         <div class="mini-stat">
@@ -457,6 +494,7 @@ async function loadOverview() {
   renderApiReference(overview);
   renderPythonConfig(overview);
   renderKnowledgeSync(overview);
+  renderJira(overview);
   renderDemoScenarios(overview);
 }
 
@@ -612,6 +650,67 @@ async function runKnowledgeSync() {
   }
 }
 
+async function saveKnowledgeSyncSchedule() {
+  const gameId = refs.gameId.value;
+  refs.syncMessage.textContent = `正在保存 ${gameId} 的自动同步计划...`;
+  try {
+    const result = await fetchJson("/api/v1/project/knowledge-sync/scheduler", {
+      method: "POST",
+      body: JSON.stringify({
+        enabled: refs.syncSchedulerEnabled.checked,
+        interval_minutes: Number(refs.syncInterval.value || 60),
+        game_ids: [gameId],
+        max_results_per_query: 2,
+      }),
+    });
+    refs.syncMessage.textContent = `计划已保存：${result.enabled ? "已启用" : "已停用"}，间隔 ${result.interval_minutes} 分钟。`;
+    await syncProjectView();
+  } catch (error) {
+    refs.syncMessage.textContent = `保存失败：${error.message}`;
+  }
+}
+
+async function runScheduledSyncNow() {
+  const gameId = refs.gameId.value;
+  refs.syncMessage.textContent = `正在按计划立即执行 ${gameId} 的同步...`;
+  try {
+    const result = await fetchJson("/api/v1/project/knowledge-sync/scheduler/run", {
+      method: "POST",
+      body: JSON.stringify({
+        game_ids: [gameId],
+      }),
+    });
+    refs.syncMessage.textContent = `执行完成：新增 ${result.total_stored_new_docs || 0} 篇，跳过 ${result.total_skipped_existing_docs || 0} 篇。`;
+    await syncProjectView();
+  } catch (error) {
+    refs.syncMessage.textContent = `执行失败：${error.message}`;
+  }
+}
+
+async function exportJira(dryRun = true) {
+  refs.jiraMessage.textContent = dryRun ? "正在生成 Jira 预览..." : "正在创建 Jira 工单...";
+  try {
+    const result = await fetchJson("/api/v1/analytics/jira/export", {
+      method: "POST",
+      body: JSON.stringify({
+        game_id: refs.gameId.value,
+        limit: 3,
+        dry_run: dryRun,
+      }),
+    });
+    const issuePreview = (result.issues || [])
+      .map((item) => (item.jira_key ? `${item.summary} -> ${item.jira_key}` : item.summary))
+      .join("；");
+    refs.jiraMessage.textContent = dryRun
+      ? `预览完成：共 ${result.issue_count} 项。${issuePreview || "暂无可导出的优先级项。"}`
+      : `已处理 ${result.issue_count} 项。${issuePreview || "没有生成新工单。"}`
+    ;
+    await syncProjectView();
+  } catch (error) {
+    refs.jiraMessage.textContent = `Jira 导出失败：${error.message}`;
+  }
+}
+
 function bindRatingButtons() {
   const buttons = refs.ratingRow.querySelectorAll(".rating-button");
   buttons.forEach((button) => {
@@ -629,7 +728,11 @@ refs.refreshDashboard.addEventListener("click", refreshDashboard);
 refs.gameId.addEventListener("change", refreshDashboard);
 refs.runBatchDemo.addEventListener("click", runBatchDemo);
 refs.syncSelectedGame.addEventListener("click", runKnowledgeSync);
+refs.saveSyncSchedule.addEventListener("click", saveKnowledgeSyncSchedule);
+refs.syncRunScheduled.addEventListener("click", runScheduledSyncNow);
 refs.refreshSyncStatus.addEventListener("click", syncProjectView);
+refs.previewJiraExport.addEventListener("click", () => exportJira(true));
+refs.createJiraExport.addEventListener("click", () => exportJira(false));
 
 bindRatingButtons();
 syncProjectView().catch((error) => {

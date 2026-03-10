@@ -2,22 +2,23 @@
 
 这个项目现在已经不是单纯的接口骨架了。它可以用本地知识库做检索，也可以在结果不够时联网补充；可以跑 SQLite，也可以切到 PostgreSQL；有 FastAPI 接口，也有一个能直接演示问答、反馈、模块状态和知识同步的网页控制台。
 
-目前默认支持 `mock`、`gemini`、`claude` 三种生成模式。模型密钥不再要求用户在网页里输入，而是放在本地 Python 配置文件中，已经被 `.gitignore` 忽略，不会被推到远程仓库。
+目前默认支持 `mock`、`gemini`、`claude`、`nim` 四种生成模式。模型密钥不再要求用户在网页里输入，而是放在本地 Python 配置文件中，已经被 `.gitignore` 忽略，不会被推到远程仓库。
 
 ## 现在能做什么
 
 - 游戏问答主链路已经打通：检索、生成、来源返回、日志记录都能跑。
 - 检索链路采用混合方案：`jieba + BM25 + 向量检索 + 可选 BERT 重排序`。
 - 数据库支持 `SQLite` 和 `PostgreSQL`，PostgreSQL 不可用时会自动回退到 SQLite。
-- 支持联网检索补充，且可以把在线资料手动同步进数据库，后续问答直接复用本地文档。
-- 页面内可以直接演示问答、提交反馈、看查询统计、看模块核查、触发知识同步。
+- 支持联网检索补充，也可以把在线资料手动或定时同步进数据库，后续问答直接复用本地文档。
+- 页面内可以直接演示问答、提交反馈、看查询统计、看模块核查、触发知识同步、配置自动同步计划。
 - 老年友好分步引导、祖孙协作模式已经接进主问答流程。
+- 支持将优先级报告预览或导出到 Jira。
+- 支持 NIM / OpenAI-compatible 推理入口。
 
-## 还没有彻底做完的部分
+## 当前范围说明
 
-- 多模态接口已经预留，但目前还是轻量实现，不是完整生产版本。
-- 爬虫模块和手动同步已经有了，真正稳定的定时调度和“分钟级更新”还没有补完。
-- Jira 联动、NVIDIA NIM 推理优化还没做。
+- 多模态接口已经可以通过统一 API 调用，但它更适合演示和联调，还不是面向硬件设备的大规模生产方案。
+- 爬虫同步链路已经接入，但站点解析效果仍然会受到目标页面结构变化影响。
 
 ## 目录说明
 
@@ -64,6 +65,19 @@ LOCAL_PROVIDER_CONFIG = {
 ```
 
 如果你想用 Claude，就把 `AI_PROVIDER` 改成 `claude`，再填 `CLAUDE_API_KEY` 和模型名。
+
+如果你想用 NIM，就把 `AI_PROVIDER` 改成 `nim`，再补 `NIM_API_KEY`、`NIM_API_BASE` 和 `NIM_MODEL`。
+
+如果你要启用 Jira 导出，还可以一起补上：
+
+```python
+LOCAL_PROVIDER_CONFIG = {
+    "JIRA_BASE_URL": "https://your-domain.atlassian.net",
+    "JIRA_EMAIL": "your-email@example.com",
+    "JIRA_API_TOKEN": "your-token",
+    "JIRA_PROJECT_KEY": "RAG",
+}
+```
 
 这个文件已经在 `.gitignore` 里，不会被提交到远程仓库。
 
@@ -117,13 +131,18 @@ docker run --name rag-game-qa-postgres -e POSTGRES_PASSWORD=password -e POSTGRES
 
 ### 在网页里同步
 
-打开控制台 [http://localhost:8000/app](http://localhost:8000/app)，找到“联网知识同步”卡片，点击“同步当前游戏”即可。
+打开控制台 [http://localhost:8000/app](http://localhost:8000/app)，找到“联网知识同步”卡片，可以：
+
+- 点击“同步当前游戏”执行一次手动同步。
+- 配置自动同步开关和间隔分钟数。
+- 点击“立即执行计划”验证当前计划是否生效。
 
 ### 用脚本同步
 
 ```bash
 python scripts/sync_online_knowledge.py --game-id wow
 python scripts/sync_online_knowledge.py --game-id genshin --query 元素反应 --query 圣遗物 --top-k 2
+python scripts/sync_online_knowledge.py --game-id wow --include-crawler --crawler-max-pages 3
 ```
 
 ### 用 API 同步
@@ -134,7 +153,45 @@ curl -X POST http://localhost:8000/api/v1/project/knowledge-sync \
   -d "{\"game_id\":\"wow\",\"max_results_per_query\":2}"
 ```
 
-## 5. 常用接口
+### 配置自动同步计划
+
+```bash
+python scripts/configure_sync_scheduler.py --enable --interval 30 --game-id wow --run-now
+```
+
+或者直接调用：
+
+```bash
+curl -X POST http://localhost:8000/api/v1/project/knowledge-sync/scheduler \
+  -H "Content-Type: application/json" \
+  -d "{\"enabled\":true,\"interval_minutes\":30,\"game_ids\":[\"wow\"],\"max_results_per_query\":2}"
+```
+
+## 5. Jira 导出
+
+如果已经在 `config/local_provider_config.py` 里填好了 Jira 配置，可以直接把反馈优先级报告导出成工单。
+
+### 先预览
+
+```bash
+python scripts/export_priority_to_jira.py --game-id wow
+```
+
+### 真正创建工单
+
+```bash
+python scripts/export_priority_to_jira.py --game-id wow --create
+```
+
+或者调用 API：
+
+```bash
+curl -X POST http://localhost:8000/api/v1/analytics/jira/export \
+  -H "Content-Type: application/json" \
+  -d "{\"game_id\":\"wow\",\"limit\":3,\"dry_run\":false}"
+```
+
+## 6. 常用接口
 
 ### 提问
 
@@ -156,7 +213,13 @@ curl http://localhost:8000/api/v1/project/overview
 python scripts/check_db_status.py
 ```
 
-## 6. 页面里可以直接看的东西
+### 查看 Jira 状态
+
+```bash
+curl http://localhost:8000/api/v1/analytics/jira/status
+```
+
+## 7. 页面里可以直接看的东西
 
 - 系统当前用的 Provider 和模型
 - 数据库后端、是否回退到 SQLite
@@ -165,8 +228,10 @@ python scripts/check_db_status.py
 - 批量演示问题
 - 查询统计、反馈统计、高频问题、优先级报告
 - 联网知识是否已经同步入库
+- 自动同步计划状态
+- Jira 是否已配置、当前游戏能导出哪些工单
 
-## 7. 排错建议
+## 8. 排错建议
 
 ### 看到 `No module named 'psycopg2'`
 
@@ -196,15 +261,17 @@ python scripts/check_db_status.py
 - `DATABASE_URL` 如果是 PostgreSQL，数据库真的已经启动
 - 本地端口 `8000` 没被别的程序占用
 
-## 8. 一个更实际的使用顺序
+## 9. 一个更实际的使用顺序
 
 1. 先配置好 `config/local_provider_config.py`。
 2. 跑 `python run_server.py`。
 3. 打开 [http://localhost:8000/app](http://localhost:8000/app)。
 4. 先在“联网知识同步”里给目标游戏同步一轮资料。
-5. 再到“问答演示”里提问题。
-6. 根据结果提交反馈，页面右侧看统计变化。
+5. 如果要长期演示，再把自动同步计划开起来。
+6. 再到“问答演示”里提问题。
+7. 根据结果提交反馈，页面右侧看统计变化。
+8. 如果需要把问题交给开发流程处理，就去 Jira 卡片里预览或创建工单。
 
-## 9. 说明
+## 10. 说明
 
-这个仓库现在已经把“只是接口壳子”和“真正能跑的 RAG 演示系统”区分开了。能跑通的部分已经尽量落到代码和页面里；还没做完的部分，也会在模块核查页里明确标出来，而不是写得很满。
+这个仓库现在已经把“只是接口壳子”和“真正能跑的 RAG 演示系统”区分开了。核心问答、数据库、联网补充、自动同步、Jira 导出和模型切换都已经落到代码和页面里；剩下需要继续打磨的，主要是多模态细节和特定站点爬虫适配质量。

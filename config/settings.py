@@ -52,6 +52,12 @@ class Settings:
     GEMINI_MAX_TOKENS: int = int(_get_config_value("GEMINI_MAX_TOKENS", "2048"))
     GEMINI_TEMPERATURE: float = float(_get_config_value("GEMINI_TEMPERATURE", "0.7"))
 
+    NIM_API_KEY: str = _get_config_value("NIM_API_KEY", "")
+    NIM_API_BASE: str = _get_config_value("NIM_API_BASE", "https://integrate.api.nvidia.com/v1")
+    NIM_MODEL: str = _get_config_value("NIM_MODEL", "meta/llama-3.1-70b-instruct")
+    NIM_MAX_TOKENS: int = int(_get_config_value("NIM_MAX_TOKENS", "2048"))
+    NIM_TEMPERATURE: float = float(_get_config_value("NIM_TEMPERATURE", "0.2"))
+
     DEFAULT_MODEL: str = _get_config_value("DEFAULT_MODEL", "claude-sonnet-4-6")
     RUNTIME_STORAGE_MODE: str = _get_config_value("RUNTIME_STORAGE_MODE", "session")
     EMBEDDING_MODEL: str = _get_config_value("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
@@ -79,6 +85,20 @@ class Settings:
     WEB_RETRIEVAL_TIMEOUT_SECONDS: int = int(_get_config_value("WEB_RETRIEVAL_TIMEOUT_SECONDS", "8"))
     ENABLE_BERT_RERANKER: bool = _get_config_value("ENABLE_BERT_RERANKER", "False").lower() == "true"
 
+    KNOWLEDGE_SYNC_SCHEDULER_ENABLED: bool = _get_config_value("KNOWLEDGE_SYNC_SCHEDULER_ENABLED", "False").lower() == "true"
+    KNOWLEDGE_SYNC_INTERVAL_MINUTES: int = int(_get_config_value("KNOWLEDGE_SYNC_INTERVAL_MINUTES", "60"))
+    KNOWLEDGE_SYNC_GAMES: str = _get_config_value("KNOWLEDGE_SYNC_GAMES", "wow,lol,genshin")
+    KNOWLEDGE_SYNC_MAX_RESULTS_PER_QUERY: int = int(_get_config_value("KNOWLEDGE_SYNC_MAX_RESULTS_PER_QUERY", "2"))
+    KNOWLEDGE_SYNC_INCLUDE_CRAWLER: bool = _get_config_value("KNOWLEDGE_SYNC_INCLUDE_CRAWLER", "False").lower() == "true"
+    KNOWLEDGE_SYNC_CRAWLER_MAX_PAGES: int = int(_get_config_value("KNOWLEDGE_SYNC_CRAWLER_MAX_PAGES", "3"))
+
+    JIRA_BASE_URL: str = _get_config_value("JIRA_BASE_URL", "")
+    JIRA_EMAIL: str = _get_config_value("JIRA_EMAIL", "")
+    JIRA_API_TOKEN: str = _get_config_value("JIRA_API_TOKEN", "")
+    JIRA_PROJECT_KEY: str = _get_config_value("JIRA_PROJECT_KEY", "")
+    JIRA_ISSUE_TYPE: str = _get_config_value("JIRA_ISSUE_TYPE", "Task")
+    JIRA_PRIORITY_LABEL_PREFIX: str = _get_config_value("JIRA_PRIORITY_LABEL_PREFIX", "rag-feedback")
+
     @classmethod
     def get_database_url(cls) -> str:
         return _get_config_value("DATABASE_URL", "postgresql://user:password@localhost:5432/rag_game_qa")
@@ -94,6 +114,8 @@ class Settings:
             return bool(cls.GEMINI_API_KEY)
         if provider == "claude":
             return bool(cls.CLAUDE_API_KEY)
+        if provider == "nim":
+            return bool(cls.NIM_API_KEY)
         return False
 
 

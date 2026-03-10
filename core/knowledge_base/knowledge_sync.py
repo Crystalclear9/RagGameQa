@@ -13,6 +13,11 @@ from config.settings import settings
 from core.retriever.web_retriever import WebRetriever
 
 try:
+    from data.crawler.spider_cluster import SpiderCluster
+except Exception:  # pragma: no cover - optional at runtime
+    SpiderCluster = None  # type: ignore[assignment]
+
+try:
     from sentence_transformers import SentenceTransformer
 except Exception:  # pragma: no cover - optional at runtime
     SentenceTransformer = None  # type: ignore[assignment]
@@ -63,6 +68,8 @@ class KnowledgeSyncService:
         self,
         queries: Optional[List[str]] = None,
         max_results_per_query: int = 2,
+        include_crawler: Optional[bool] = None,
+        crawler_max_pages: Optional[int] = None,
     ) -> Dict[str, Any]:
         create_tables()
         sync_queries = [item.strip() for item in (queries or get_default_sync_queries(self.game_id)) if item and item.strip()]
@@ -76,6 +83,12 @@ class KnowledgeSyncService:
                 if normalized:
                     normalized_docs.append(normalized)
 
+        use_crawler = settings.KNOWLEDGE_SYNC_INCLUDE_CRAWLER if include_crawler is None else bool(include_crawler)
+        crawler_docs = await self._fetch_crawler_docs(
+            max_pages=crawler_max_pages or max(1, int(settings.KNOWLEDGE_SYNC_CRAWLER_MAX_PAGES or 3)),
+        ) if use_crawler else []
+        normalized_docs.extend(crawler_docs)
+
         unique_docs = self._dedupe_docs(normalized_docs)
         store_result = self._store_docs(unique_docs)
         return {
@@ -83,6 +96,7 @@ class KnowledgeSyncService:
             "game_name": GAME_NAMES.get(self.game_id, self.game_id.upper()),
             "queries": sync_queries,
             "fetched_docs": len(unique_docs),
+            "crawler_docs": len(crawler_docs),
             **store_result,
         }
 
@@ -106,6 +120,56 @@ class KnowledgeSyncService:
                 "synced_at": synced_at,
             },
         }
+
+    async def _fetch_crawler_docs(self, max_pages: int) -> List[Dict[str, Any]]:
+        if SpiderCluster is None:
+            return []
+        try:
+            cluster = SpiderCluster(self.game_id)
+            items = await cluster.crawl_all_sources(max_pages=max_pages)
+        except Exception as exc:
+            logger.warning("Crawler sync skipped: %s", exc)
+            return []
+
+        normalized: List[Dict[str, Any]] = []
+        now = datetime.utcnow().isoformat()
+        for item in items:
+            title = self._stringify_meta(item.get("title")) or self._stringify_meta(item.get("type")) or "Crawler Result"
+            content = (
+                self._stringify_meta(item.get("content"))
+                or self._stringify_meta(item.get("description"))
+                or self._stringify_meta(item.get("title"))
+            )
+            if not content:
+                continue
+            source_name = self._stringify_meta(item.get("source")) or "crawler"
+            source_url = self._stringify_meta(item.get("url"))
+            normalized.append(
+                {
+                    "title": title[:200],
+                    "content": content[:2000],
+                    "category": "crawler_sync",
+                    "source": (source_url or source_name)[:200],
+                    "doc_metadata": {
+                        "retrieval_type": "crawler",
+                        "crawler_source": source_name,
+                        "synced_at": now,
+                    },
+                }
+            )
+        return normalized
+
+    def _stringify_meta(self, value: Any) -> str:
+        if value is None:
+            return ""
+        try:
+            if hasattr(value, "get"):
+                content = value.get("content")
+                if content:
+                    return str(content).strip()
+            return str(value).strip()
+        except Exception:
+            return ""
 
     def _dedupe_docs(self, docs: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
         deduped: List[Dict[str, Any]] = []
@@ -182,7 +246,7 @@ class KnowledgeSyncService:
 def build_sync_status(game_id: Optional[str] = None) -> Dict[str, Any]:
     db = SessionLocal()
     try:
-        query = db.query(Document).filter(Document.category == "web_sync")
+        query = db.query(Document).filter(Document.category.in_(["web_sync", "crawler_sync"]))
         if game_id:
             query = query.filter(Document.game_id == game_id)
         docs = query.order_by(Document.created_at.desc()).all()

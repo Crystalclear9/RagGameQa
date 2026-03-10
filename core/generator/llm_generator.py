@@ -36,8 +36,13 @@ class LLMGenerator:
             self.temperature = settings.CLAUDE_TEMPERATURE
             self.max_tokens = settings.CLAUDE_MAX_TOKENS
             logger.info("Using Claude model %s", self.model_name)
+        elif self.ai_provider == "nim" and settings.NIM_API_KEY:
+            self.model_name = settings.NIM_MODEL
+            self.temperature = settings.NIM_TEMPERATURE
+            self.max_tokens = settings.NIM_MAX_TOKENS
+            logger.info("Using NVIDIA NIM / OpenAI-compatible model %s", self.model_name)
         else:
-            if self.ai_provider in {"gemini", "claude"}:
+            if self.ai_provider in {"gemini", "claude", "nim"}:
                 logger.warning("%s is selected but API key is missing, fallback to mock mode", self.ai_provider)
             self.ai_provider = "mock"
             logger.info("Using mock generator for %s", game_id)
@@ -103,6 +108,8 @@ class LLMGenerator:
             return await self._call_gemini(system_prompt, user_prompt)
         if self.ai_provider == "claude":
             return await self._call_claude(system_prompt, user_prompt)
+        if self.ai_provider == "nim":
+            return await self._call_nim(system_prompt, user_prompt)
         return self._generate_mock_answer(question, context_docs)
 
     async def _call_gemini(self, system_prompt: str, user_prompt: str) -> str:
@@ -207,6 +214,49 @@ class LLMGenerator:
         if text_parts:
             return "\n".join(text_parts).strip()
         return "Claude 未返回可用内容，请稍后重试。"
+
+    async def _call_nim(self, system_prompt: str, user_prompt: str) -> str:
+        endpoint = f"{settings.NIM_API_BASE.rstrip('/')}/chat/completions"
+        payload = {
+            "model": self.model_name,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {settings.NIM_API_KEY}",
+        }
+
+        try:
+            response = await asyncio.to_thread(
+                requests.post,
+                endpoint,
+                headers=headers,
+                json=payload,
+                timeout=settings.TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            data = response.json()
+        except requests.HTTPError as exc:
+            return self._provider_http_error_message("NIM", exc)
+        except requests.RequestException as exc:
+            logger.warning("NIM request failed: %s", redact_sensitive_text(exc))
+            return "NIM 连接失败，请检查网络、API Base、代理或模型部署状态。"
+        except Exception as exc:
+            logger.error("NIM request error: %s", redact_sensitive_text(exc), exc_info=True)
+            return "NIM 请求异常，请稍后重试。"
+
+        choices = data.get("choices") or []
+        for choice in choices:
+            message = choice.get("message") or {}
+            content = message.get("content")
+            if isinstance(content, str) and content.strip():
+                return content.strip()
+        return "NIM 未返回可用内容，请检查模型名称或部署状态。"
 
     def _provider_http_error_message(self, provider_name: str, exc: requests.HTTPError) -> str:
         status = exc.response.status_code if exc.response is not None else None

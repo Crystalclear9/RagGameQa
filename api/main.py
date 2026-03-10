@@ -16,6 +16,7 @@ from api.routes import analytics_routes, project_routes, qa_routes, runtime_rout
 from config.database import create_tables, database_status
 from config.runtime_config import load_persisted_runtime_config
 from config.settings import settings
+from core.knowledge_base.sync_scheduler import knowledge_sync_scheduler
 from utils.security import redact_sensitive_text
 
 try:
@@ -135,8 +136,15 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def startup_event():
     create_tables()
     loaded_secure_runtime = load_persisted_runtime_config()
+    scheduler_status = await knowledge_sync_scheduler.restore()
     logger.info("Database initialized: %s", database_status())
     logger.info("Secure runtime config loaded: %s", loaded_secure_runtime)
+    logger.info("Knowledge sync scheduler restored: %s", scheduler_status)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    await knowledge_sync_scheduler.stop()
 
 
 app.include_router(qa_routes.router, prefix="/api/v1/qa", tags=["问答"])
@@ -176,6 +184,8 @@ async def root():
             "project_showcase": True,
             "runtime_config": True,
             "knowledge_sync": True,
+            "knowledge_sync_scheduler": True,
+            "jira_export": True,
             "multimodal": HAS_MULTIMODAL,
             "health": HAS_HEALTH,
             "web_frontend": frontend_dir.exists(),

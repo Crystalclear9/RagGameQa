@@ -19,25 +19,28 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = PROJECT_ROOT / ".env"
-SUPPORTED_PROVIDERS = {"mock", "gemini", "claude"}
+SUPPORTED_PROVIDERS = {"mock", "gemini", "claude", "nim"}
 SUPPORTED_STORAGE_MODES = {"session", "secure_local", "env"}
 
 PROVIDER_MODEL_FIELD = {
     "mock": None,
     "gemini": "GEMINI_MODEL",
     "claude": "CLAUDE_MODEL",
+    "nim": "NIM_MODEL",
 }
 
 PROVIDER_KEY_FIELD = {
     "mock": None,
     "gemini": "GEMINI_API_KEY",
     "claude": "CLAUDE_API_KEY",
+    "nim": "NIM_API_KEY",
 }
 
 PROVIDER_DEFAULT_MODEL = {
     "mock": "mock-llm-v1",
     "gemini": settings.GEMINI_MODEL,
     "claude": settings.CLAUDE_MODEL,
+    "nim": settings.NIM_MODEL,
 }
 
 PROVIDER_CATALOG = {
@@ -70,6 +73,15 @@ PROVIDER_CATALOG = {
             {"id": "claude-sonnet-4-6", "label": "最新平衡模型", "stage": "latest"},
             {"id": "claude-opus-4-6", "label": "高能力旗舰模型", "stage": "latest"},
             {"id": "claude-haiku-4-5", "label": "低延迟轻量模型", "stage": "latest"},
+        ],
+    },
+    "nim": {
+        "recommended": settings.NIM_MODEL or "meta/llama-3.1-70b-instruct",
+        "latest_verified_at": "2026-03-10",
+        "source_url": "https://build.nvidia.com/explore/discover",
+        "models": [
+            {"id": settings.NIM_MODEL or "meta/llama-3.1-70b-instruct", "label": "当前本地默认模型", "stage": "config"},
+            {"id": "自定义填写", "label": "按你的 NIM 部署模型填写", "stage": "custom"},
         ],
     },
 }

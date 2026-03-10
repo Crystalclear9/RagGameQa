@@ -25,13 +25,13 @@
     },
     {
       "label": "联网能力",
-      "value": "在线补充 + 手动落库",
-      "description": "问题检索时可联网补充，也支持把在线资料同步进数据库。"
+      "value": "在线补充 + 自动同步",
+      "description": "支持按次联网补充、手动落库，以及定时知识同步计划。"
     },
     {
-      "label": "使用方式",
-      "value": "FastAPI + Web GUI",
-      "description": "既能走 Swagger / REST API，也能直接打开网页演示。"
+      "label": "模型接入",
+      "value": "Mock / Gemini / Claude / NIM",
+      "description": "支持本地演示、Gemini、Claude 和 NIM(OpenAI-compatible) 推理入口。"
     }
   ],
   "architecture_sections": [
@@ -50,6 +50,7 @@
         "样例知识库支持开箱即用",
         "SQLite / PostgreSQL 双后端",
         "在线 wiki / Wikipedia 内容可同步入库",
+        "支持可选爬虫源和定时同步计划",
         "问答日志、反馈数据统一写库"
       ]
     },
@@ -58,8 +59,8 @@
       "items": [
         "Web 控制台展示运行状态和模块核查",
         "问答页支持联网开关、分步引导、家庭模式",
-        "反馈分析生成高频问题和优先级报告",
-        "多模态接口保留统一入口，便于后续扩展"
+        "反馈分析生成高频问题、优先级报告和 Jira 导出",
+        "多模态接口已接入统一入口，便于后续继续增强"
       ]
     }
   ],
@@ -68,8 +69,12 @@
     "混合检索与来源返回",
     "SQLite / PostgreSQL 数据库模式",
     "联网检索补充与在线知识落库",
+    "自动知识同步计划",
     "反馈写入、统计和优先级报告",
+    "Jira 工单导出",
     "分步引导与祖孙协作模式",
+    "NVIDIA NIM / OpenAI-compatible 模型接入",
+    "多模态统一接口",
     "Web GUI 与 Swagger 文档",
     "Gemini / Claude / Mock 模型接入"
   ],
@@ -153,8 +158,8 @@
     },
     {
       "module": "多模态交互",
-      "status": "partial",
-      "description": "语音、图像、触觉接口已预留且可调用，但当前仍偏轻量实现，不是完整生产方案。",
+      "status": "implemented",
+      "description": "语音、图像、触觉接口已经接入统一路由，可直接通过 API 做演示和联调。",
       "evidence": [
         "/api/v1/multimodal/process",
         "/api/v1/multimodal/capabilities"
@@ -162,24 +167,34 @@
     },
     {
       "module": "动态爬虫与定时更新",
-      "status": "partial",
-      "description": "仓库内已有爬虫模块和手动同步入口，但还没有真正稳定运行的定时调度与分钟级更新任务。",
+      "status": "implemented",
+      "description": "支持手动同步、可选爬虫源、以及服务启动后可恢复的自动同步计划。",
       "evidence": [
         "data/crawler/spider_cluster.py",
-        "core/knowledge_base/knowledge_sync.py"
+        "core/knowledge_base/knowledge_sync.py",
+        "core/knowledge_base/sync_scheduler.py",
+        "/api/v1/project/knowledge-sync/scheduler"
       ]
     },
     {
       "module": "Jira 闭环集成",
-      "status": "missing",
-      "description": "开发者工单联动还没有接进当前代码库。",
-      "evidence": []
+      "status": "implemented",
+      "description": "支持把优先级报告预览或导出为 Jira 工单，未配置时也能先预览生成内容。",
+      "evidence": [
+        "integrations/jira_client.py",
+        "/api/v1/analytics/jira/status",
+        "/api/v1/analytics/jira/export"
+      ]
     },
     {
       "module": "NVIDIA NIM 推理优化",
-      "status": "missing",
-      "description": "文档里提到的 NIM 推理优化暂未接入。",
-      "evidence": []
+      "status": "implemented",
+      "description": "已提供 NIM/OpenAI-compatible 推理入口，可在本地 Python 配置中直接切换使用。",
+      "evidence": [
+        "core/generator/llm_generator.py",
+        "config/runtime_config.py",
+        "config/local_provider_config.example.py"
+      ]
     }
   ],
   "api_reference": [
@@ -200,6 +215,18 @@
       "method": "POST",
       "path": "/api/v1/project/knowledge-sync",
       "description": "把在线检索到的资料写入数据库，用于后续 RAG 检索。"
+    },
+    {
+      "name": "自动同步计划",
+      "method": "POST",
+      "path": "/api/v1/project/knowledge-sync/scheduler",
+      "description": "保存或更新知识同步计划，支持按分钟定时执行。"
+    },
+    {
+      "name": "Jira 导出",
+      "method": "POST",
+      "path": "/api/v1/analytics/jira/export",
+      "description": "把反馈优先级报告预览或导出成 Jira 工单。"
     },
     {
       "name": "反馈写入",
@@ -225,14 +252,16 @@
     "instructions": [
       "在 Python 文件里直接填写模型 Provider 和 API Key，不需要在网页里输入。",
       "推荐从 `config/local_provider_config.example.py` 复制一份再修改。",
+      "如果要用 NIM 或 Jira，也是在这个文件里补齐对应配置。",
       "修改后重启 `python run_server.py` 即可生效。",
       "这个文件已经被 `.gitignore` 忽略，不会被提交到远程仓库。"
     ],
     "sample_lines": [
       "LOCAL_PROVIDER_CONFIG = {",
-      "    \"AI_PROVIDER\": \"gemini\",",
-      "    \"GEMINI_API_KEY\": \"在这里填写你的 key\",",
-      "    \"GEMINI_MODEL\": \"gemini-2.5-flash\",",
+      "    \"AI_PROVIDER\": \"nim\",",
+      "    \"NIM_API_KEY\": \"在这里填写你的 key\",",
+      "    \"NIM_MODEL\": \"meta/llama-3.1-70b-instruct\",",
+      "    \"JIRA_BASE_URL\": \"https://your-domain.atlassian.net\",",
       "}"
     ]
   },

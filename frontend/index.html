@@ -106,11 +106,37 @@
         </div>
         <p class="subtle">把在线资料写入数据库后，后续问答会优先命中本地知识库，不需要每次都临时联网。</p>
         <div id="syncStats" class="mini-stats"></div>
+        <div class="sync-controls">
+          <label class="compact-control">
+            <span>自动同步</span>
+            <input id="syncSchedulerEnabled" type="checkbox">
+          </label>
+          <label class="compact-control">
+            <span>间隔（分钟）</span>
+            <input id="syncInterval" type="number" min="5" max="1440" value="60">
+          </label>
+        </div>
         <div class="hero-actions">
           <button id="syncSelectedGame" class="secondary-button" type="button">同步当前游戏</button>
+          <button id="syncRunScheduled" class="secondary-button" type="button">立即执行计划</button>
+          <button id="saveSyncSchedule" class="ghost-button" type="button">保存自动同步</button>
           <button id="refreshSyncStatus" class="text-button" type="button">刷新状态</button>
         </div>
         <p id="syncMessage" class="feedback-message"></p>
+      </article>
+
+      <article class="panel card">
+        <div class="panel-header">
+          <h2>Jira 联动</h2>
+          <span id="jiraStatusChip" class="metric-chip">读取中</span>
+        </div>
+        <p class="subtle">可以把当前反馈优先级报告导出成 Jira 工单；如果还没填 Jira 配置，也能先预览会生成哪些工单。</p>
+        <div id="jiraStats" class="mini-stats"></div>
+        <div class="hero-actions">
+          <button id="previewJiraExport" class="secondary-button" type="button">预览当前游戏导出</button>
+          <button id="createJiraExport" class="ghost-button" type="button">创建 Jira 工单</button>
+        </div>
+        <p id="jiraMessage" class="feedback-message"></p>
       </article>
     </section>
 
