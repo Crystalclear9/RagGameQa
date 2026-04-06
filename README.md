@@ -5,8 +5,10 @@
 当前仓库已经整理为可以直接演示和继续开发的状态，日常使用主要围绕以下几部分：
 
 - `FastAPI` 接口与 Swagger 文档
-- `/app` 图形化界面
+- `/app` 赛博游戏风全息图形交互界面 (Cyber-HUD)
 - 本地数据库检索与联网知识同步
+- DeepSeek及多主模型自由切换架构
+- 多模态功能：无缝集成 BLIP-2 视觉模型与 Wav2Vec2.0 语音方言模型（支持听障、视障辅助）
 - 问答日志、反馈统计、优先级分析
 - Jira 导出
 
@@ -124,6 +126,17 @@ LOCAL_PROVIDER_CONFIG = {
 }
 ```
 
+DeepSeek 配置示例：
+
+```python
+LOCAL_PROVIDER_CONFIG = {
+    "AI_PROVIDER": "deepseek",
+    "DEEPSEEK_API_KEY": "your-deepseek-api-key",
+    "DEEPSEEK_API_BASE": "https://api.deepseek.com/v1",
+    "DEEPSEEK_MODEL": "deepseek-chat",
+}
+```
+
 说明：
 
 - 上述模型名是仓库当前默认示例，可按你的账号权限替换为同提供方支持的模型
@@ -201,9 +214,19 @@ python scripts/check_db_status.py
 
 如果 `Using fallback: True`，说明当前正在使用 SQLite。
 
-### 路径 B：接入 PostgreSQL
+### 路径 B：接入 PostgreSQL（Windows 一键快速极客部署）
 
-适合需要稳定持久化、多人共享数据库或后续部署的场景。
+适合个人开发展示环境在 Windows 使用本地持久化数据而不想安装 Docker，也可以一键搭好：
+
+执行专属脚本：
+```powershell
+.\scripts\setup_postgres_windows.ps1
+```
+*(此操作无需管理员权限而且不污染环境变量，自动化下载并绑定在项目库局部运行。)*
+
+### 路径 C：接入 PostgreSQL（传统生产级与脚本部署）
+
+适合需要稳定持久化、多人共享数据库或后续生产服务器部署的场景。
 
 #### 步骤 1：确认 `.env` 中的数据库地址
 
@@ -429,6 +452,7 @@ python scripts/test_all.py
 - `create_postgres_db.py`：创建 PostgreSQL 数据库
 - `bootstrap_external_db.py`：初始化外部 PostgreSQL 并写入样例数据
 - `add_sample_docs.py`：添加本地样例文档
+- `setup_postgres_windows.ps1`：Windows 环境下一键轻量安装并挂载 PostgreSQL
 - `simple_test.py` / `test_all.py`：基础检查与测试
 
 补充说明：

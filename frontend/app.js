@@ -1,824 +1,597 @@
+const SESSIONS_KEY = "rag-game-qa-sessions-v1";
+
+function generateId() {
+  return Math.random().toString(36).substr(2, 9);
+}
+
+function loadSessions() {
+  try {
+    const raw = window.localStorage.getItem(SESSIONS_KEY);
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : createDefaultSession();
+  } catch {
+    return createDefaultSession();
+  }
+}
+
+function createDefaultSession() {
+  return [{ 
+    id: generateId(), 
+    title: '新对话', 
+    gameId: 'wow', 
+    messages: [{ role: 'system', text: '您好！我是您的游戏问答智能体，请在这片全新净土提问。' }] 
+  }];
+}
+
+function initParticleLogo() {
+  const canvas = document.getElementById('particleLogo');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  const dpr = window.devicePixelRatio || 1;
+  const size = 32;
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  ctx.scale(dpr, dpr);
+  
+  const particles = [];
+  const numParticles = 14;
+  for(let i = 0; i < numParticles; i++) {
+    particles.push({
+      x: Math.random() * size, 
+      y: Math.random() * size,
+      vx: (Math.random() - 0.5) * 0.4, 
+      vy: (Math.random() - 0.5) * 0.4
+    });
+  }
+  
+  function animate() {
+    ctx.clearRect(0, 0, size, size);
+    for(let i = 0; i < particles.length; i++) {
+      let p = particles[i];
+      p.x += p.vx; p.y += p.vy;
+      
+      if (p.x < 0 || p.x > size) p.vx *= -1;
+      if (p.y < 0 || p.y > size) p.vy *= -1;
+      
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2);
+      ctx.fillStyle = '#0ea5e9';
+      ctx.fill();
+      
+      for(let j = i + 1; j < particles.length; j++) {
+        let p2 = particles[j];
+        let d = Math.hypot(p.x - p2.x, p.y - p2.y);
+        if (d < 12) {
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y); 
+          ctx.lineTo(p2.x, p2.y);
+          ctx.strokeStyle = `rgba(14, 165, 233, ${1 - d/12})`;
+          ctx.lineWidth = 0.6;
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+  animate();
+}
+
 const state = {
-  selectedRating: null,
-  lastQueryLogId: null,
-  overview: null,
-  audit: null,
-  controllers: {},
+  sessions: loadSessions(),
+  currentSessionId: null
 };
 
 const refs = {
-  navLinks: Array.from(document.querySelectorAll(".nav-link")),
-  sections: Array.from(document.querySelectorAll("section[id]")),
-  heroTitle: document.getElementById("heroTitle"),
-  heroSubtitle: document.getElementById("heroSubtitle"),
-  heroChips: document.getElementById("heroChips"),
-  overviewCards: document.getElementById("overviewCards"),
-  databaseBadge: document.getElementById("databaseBadge"),
-  runtimeCards: document.getElementById("runtimeCards"),
-  coverageChip: document.getElementById("coverageChip"),
-  coverageGrid: document.getElementById("coverageGrid"),
-  auditChip: document.getElementById("auditChip"),
-  auditSummary: document.getElementById("auditSummary"),
-  architectureStack: document.getElementById("architectureStack"),
-  implementedList: document.getElementById("implementedList"),
-  apiReferenceList: document.getElementById("apiReferenceList"),
-  providerStatusBadge: document.getElementById("providerStatusBadge"),
-  providerSnapshot: document.getElementById("providerSnapshot"),
-  pythonConfigPath: document.getElementById("pythonConfigPath"),
-  pythonConfigSteps: document.getElementById("pythonConfigSteps"),
-  pythonConfigCode: document.getElementById("pythonConfigCode"),
-  syncStatusChip: document.getElementById("syncStatusChip"),
-  syncStats: document.getElementById("syncStats"),
-  syncSelectedGame: document.getElementById("syncSelectedGame"),
-  syncSchedulerEnabled: document.getElementById("syncSchedulerEnabled"),
-  syncInterval: document.getElementById("syncInterval"),
-  syncRunScheduled: document.getElementById("syncRunScheduled"),
-  saveSyncSchedule: document.getElementById("saveSyncSchedule"),
-  refreshSyncStatus: document.getElementById("refreshSyncStatus"),
-  syncMessage: document.getElementById("syncMessage"),
-  jiraStatusChip: document.getElementById("jiraStatusChip"),
-  jiraStats: document.getElementById("jiraStats"),
-  previewJiraExport: document.getElementById("previewJiraExport"),
-  createJiraExport: document.getElementById("createJiraExport"),
-  jiraMessage: document.getElementById("jiraMessage"),
-  moduleAuditGrid: document.getElementById("moduleAuditGrid"),
-  demoScenarioButtons: document.getElementById("demoScenarioButtons"),
-  batchDemoResults: document.getElementById("batchDemoResults"),
-  runBatchDemo: document.getElementById("runBatchDemo"),
-  qaForm: document.getElementById("qaForm"),
-  gameId: document.getElementById("gameId"),
-  userType: document.getElementById("userType"),
-  difficultyLevel: document.getElementById("difficultyLevel"),
-  topK: document.getElementById("topK"),
-  enableWebRetrieval: document.getElementById("enableWebRetrieval"),
-  assistiveGuide: document.getElementById("assistiveGuide"),
-  familyMode: document.getElementById("familyMode"),
-  questionInput: document.getElementById("questionInput"),
-  answerBox: document.getElementById("answerBox"),
-  confidenceChip: document.getElementById("confidenceChip"),
-  metaRow: document.getElementById("metaRow"),
-  sourcesList: document.getElementById("sourcesList"),
-  assistiveSteps: document.getElementById("assistiveSteps"),
-  familyGuideBox: document.getElementById("familyGuideBox"),
-  statusBadge: document.getElementById("statusBadge"),
-  ratingRow: document.getElementById("ratingRow"),
-  feedbackComment: document.getElementById("feedbackComment"),
-  submitFeedback: document.getElementById("submitFeedback"),
-  feedbackMessage: document.getElementById("feedbackMessage"),
-  refreshDashboard: document.getElementById("refreshDashboard"),
-  statsGrid: document.getElementById("statsGrid"),
-  trendBars: document.getElementById("trendBars"),
-  topQuestions: document.getElementById("topQuestions"),
-  priorityList: document.getElementById("priorityList"),
+  gamePickCards: Array.from(document.querySelectorAll('.game-pill')),
+  gameIdInput: document.getElementById('gameId'),
+  historyList: document.getElementById('historyList'),
+  chatContainer: document.getElementById('chatContainer'),
+  chatForm: document.getElementById('chatForm'),
+  questionInput: document.getElementById('questionInput'),
+  sendBtn: document.querySelector('.send-btn'),
+  newChatBtn: document.getElementById('newChatBtn'),
+  enableWebRetrieval: document.getElementById('enableWebRetrieval'),
+  assistiveGuide: document.getElementById('assistiveGuide'),
+  familyMode: document.getElementById('familyMode'),
+  voiceBtn: document.getElementById('voiceBtn'),
+  confidenceLabel: document.getElementById('confidenceLabel'),
+  plusMenuBtn: document.getElementById('plusMenuBtn'),
+  pluginsMenu: document.getElementById('pluginsMenu')
 };
 
-function nextRequestOptions(slot) {
-  const active = state.controllers[slot];
-  if (active) {
-    active.abort();
+function saveSessions() {
+  try {
+    window.localStorage.setItem(SESSIONS_KEY, JSON.stringify(state.sessions));
+  } catch { }
+}
+
+function getActiveSession() {
+  return state.sessions.find(s => s.id === state.currentSessionId) || state.sessions[0];
+}
+
+function switchSession(sessionId) {
+  state.currentSessionId = sessionId;
+  const session = getActiveSession();
+  
+  // Select game pill
+  refs.gamePickCards.forEach(c => {
+    c.classList.toggle('active', c.dataset.game === session.gameId);
+  });
+  refs.gameIdInput.value = session.gameId;
+
+  renderMessages();
+  renderSidebar();
+}
+
+function renderSidebar() {
+  refs.historyList.innerHTML = state.sessions.map(s => `
+    <div class="history-item ${s.id === state.currentSessionId ? 'active' : ''}" data-id="${s.id}">
+      <svg class="history-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+      <span class="history-title">${s.title}</span>
+      <button class="delete-session-btn" data-id="${s.id}" title="删除对话">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+      </button>
+    </div>
+  `).join("");
+}
+
+function renderMessages() {
+  refs.chatContainer.innerHTML = '';
+  const session = getActiveSession();
+  session.messages.forEach(msg => {
+    _appendMessageDOM(msg.role, msg.text, msg.metadata);
+  });
+}
+
+function _appendMessageDOM(role, text, metadata = null) {
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `message ${role}-message`;
+  
+  const avatarDiv = document.createElement('div');
+  avatarDiv.className = `avatar ${role}-avatar`;
+  
+  if (role === 'system') {
+    avatarDiv.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a8 8 0 0 1 16 0v5"></path><rect x="2" y="10" width="4" height="7" rx="1.5"></rect><rect x="18" y="10" width="4" height="7" rx="1.5"></rect><rect x="7" y="9" width="10" height="6" rx="2" fill="currentColor" fill-opacity="0.15"></rect><circle cx="9.5" cy="12" r="1.5" fill="currentColor"></circle><circle cx="14.5" cy="12" r="1.5" fill="currentColor"></circle><path d="M20 15v2c0 1-1 1.5-1 1.5l-2.5 .5"></path></svg>`;
+  } else {
+    avatarDiv.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"></circle><path d="M20 21a8 8 0 1 0-16 0"></path></svg>`;
   }
-  const controller = new AbortController();
-  state.controllers[slot] = controller;
-  return { signal: controller.signal };
-}
 
-function isAbortError(error) {
-  return error?.name === "AbortError";
-}
+  const bubbleDiv = document.createElement('div');
+  bubbleDiv.className = 'bubble';
+  bubbleDiv.textContent = text;
+  
+  if (role === 'system' && metadata && metadata.sources && metadata.sources.length > 0) {
+    const sourcesDiv = document.createElement('div');
+    sourcesDiv.className = 'sources-box';
+    sourcesDiv.innerHTML = `<strong>检索来源:</strong> ` + [...new Set(metadata.sources.map(s => s.source))].join(" ; ");
+    bubbleDiv.appendChild(sourcesDiv);
+  }
 
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-    ...options,
+  // Interactive Avatar: click to trigger animation
+  avatarDiv.style.cursor = "pointer";
+  avatarDiv.title = role === 'system' ? '点击我看看动画' : '点击我打个招呼';
+  avatarDiv.addEventListener('click', () => {
+    // Remove existing animation class to allow re-trigger
+    avatarDiv.classList.remove('avatar-clicked');
+    void avatarDiv.offsetWidth; // force reflow
+    avatarDiv.classList.add('avatar-clicked');
+    // Spawn ripple ring
+    const ripple = document.createElement('span');
+    ripple.className = 'avatar-ripple';
+    avatarDiv.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 600);
   });
 
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.detail || payload.message || `请求失败：${response.status}`);
-  }
+  messageDiv.appendChild(avatarDiv);
+  messageDiv.appendChild(bubbleDiv);
+  refs.chatContainer.appendChild(messageDiv);
+  refs.chatContainer.scrollTo({ top: refs.chatContainer.scrollHeight, behavior: 'smooth' });
+  
+  return { bubbleDiv, messageDiv };
+}
 
+function addMessageToSession(role, text, metadata = null) {
+  const session = getActiveSession();
+  session.messages.push({ role, text, metadata });
+  // Dynamic Title
+  if (session.messages.length === 3 && role === 'user') {
+    session.title = text.substring(0, 15) + (text.length > 15 ? '...' : '');
+  }
+  saveSessions();
+  renderSidebar();
+}
+
+function checkInput() {
+  refs.sendBtn.disabled = refs.questionInput.value.trim() === '';
+}
+
+refs.questionInput.addEventListener('input', () => {
+  refs.questionInput.style.height = 'auto';
+  refs.questionInput.style.height = (refs.questionInput.scrollHeight) + 'px';
+  checkInput();
+});
+
+refs.questionInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (!refs.sendBtn.disabled) refs.chatForm.dispatchEvent(new Event('submit'));
+  }
+});
+
+refs.gamePickCards.forEach(card => {
+  card.addEventListener('click', () => {
+    refs.gamePickCards.forEach(c => c.classList.remove('active'));
+    card.classList.add('active');
+    refs.gameIdInput.value = card.dataset.game;
+    
+    // Change active session's game if we are starting a fresh chat
+    const session = getActiveSession();
+    if (session.messages.length <= 1) {
+      session.gameId = card.dataset.game;
+      saveSessions();
+      renderSidebar();
+    }
+  });
+});
+
+if (refs.plusMenuBtn && refs.pluginsMenu) {
+  refs.plusMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    refs.pluginsMenu.classList.toggle('show');
+  });
+  
+  document.addEventListener('click', (e) => {
+    if (!refs.pluginsMenu.contains(e.target) && !refs.plusMenuBtn.contains(e.target)) {
+      refs.pluginsMenu.classList.remove('show');
+    }
+  });
+}
+
+refs.newChatBtn.addEventListener('click', () => {
+  const newSess = { 
+    id: generateId(), 
+    title: '新对话', 
+    gameId: refs.gameIdInput.value, 
+    messages: [{ role: 'system', text: '您好！我是您的专属问答智能体，已为您开启一段全新的对话之旅。' }] 
+  };
+  state.sessions.unshift(newSess);
+  saveSessions();
+  switchSession(newSess.id);
+});
+
+if (refs.voiceBtn) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'zh-CN';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = function() {
+      refs.voiceBtn.classList.add('recording');
+      refs.questionInput.value = "正在倾听 (Speak now)...";
+    };
+
+    recognition.onresult = function(event) {
+      const transcript = event.results[0][0].transcript;
+      refs.questionInput.value = transcript;
+      checkInput();
+    };
+
+    recognition.onerror = function(event) {
+      refs.voiceBtn.classList.remove('recording');
+      if (event.error === 'not-allowed') {
+        refs.questionInput.value = "无法使用麦克风：浏览器拦截了请求！请尝试通过 http://127.0.0.1:8000 访问，或检查浏览器麦克风权限。";
+      } else {
+        refs.questionInput.value = "语音识别错误: " + event.error;
+      }
+    };
+
+    recognition.onend = function() {
+      refs.voiceBtn.classList.remove('recording');
+      checkInput();
+    };
+
+    refs.voiceBtn.addEventListener('click', () => {
+      refs.questionInput.value = '';
+      if (refs.voiceBtn.classList.contains('recording')) {
+        recognition.stop();
+      } else {
+        try {
+          recognition.start();
+        } catch(e) {
+          refs.questionInput.value = "启动麦克风失败，可能未正确加载授权。";
+        }
+      }
+    });
+  } else {
+    refs.voiceBtn.addEventListener('click', () => {
+      refs.questionInput.value = "您的浏览器不支持 Web Speech API，请使用 Chrome。";
+    });
+  }
+}
+
+// ==================== Submit with Retry + Abort + Edit ====================
+let _currentAbortController = null;
+let _lastUserQuestion = '';
+
+function _setStopMode(active) {
+  if (active) {
+    refs.sendBtn.disabled = false;
+    refs.sendBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>';
+    refs.sendBtn.title = '停止生成';
+    refs.sendBtn.classList.add('stop-mode');
+  } else {
+    refs.sendBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>';
+    refs.sendBtn.title = '发送';
+    refs.sendBtn.classList.remove('stop-mode');
+    checkInput();
+  }
+}
+
+async function _doFetch(question, gameId, signal) {
+  const response = await fetch("/api/v1/qa/ask", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    signal,
+    body: JSON.stringify({
+      question,
+      game_id: gameId,
+      top_k: 5,
+      include_sources: true,
+      enable_web_retrieval: refs.enableWebRetrieval.checked,
+      include_assistive_guide: refs.assistiveGuide.checked,
+      include_family_guide: refs.familyMode.checked,
+      user_context: { user_id: "web-user", user_type: refs.familyMode.checked ? "elderly" : "normal" }
+    })
+  });
+  if (!response.ok) throw new Error("Server error");
   return response.json();
 }
 
-function escapeHtml(text) {
-  return String(text ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+function _isRetryableAnswer(text) {
+  const markers = ['连接失败', '请求异常', '请稍后重试', 'timed out', 'timeout'];
+  return markers.some(m => text.includes(m));
 }
 
-function renderList(container, items = [], emptyText = "暂无数据") {
-  container.innerHTML = items.length
-    ? items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
-    : `<li>${escapeHtml(emptyText)}</li>`;
-}
+refs.chatForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
 
-function setStatus(text, busy = false) {
-  refs.statusBadge.textContent = text;
-  refs.statusBadge.style.color = busy ? "#f1a65b" : "";
-}
-
-function renderHero(overview) {
-  const info = overview.system_info || {};
-  const runtime = overview.runtime_metrics || {};
-  refs.heroTitle.textContent = info.project_name || "RAG 游戏问答系统";
-  refs.heroSubtitle.textContent = info.summary || "项目信息加载中";
-  refs.heroChips.innerHTML = [
-    `定位 ${info.positioning || "--"}`,
-    `Provider ${runtime.ai_provider || "mock"}`,
-    `模型 ${runtime.model || "--"}`,
-    `总查询 ${runtime.total_queries ?? 0}`,
-    `总反馈 ${runtime.total_feedback ?? 0}`,
-  ].map((item) => `<span class="chip">${escapeHtml(item)}</span>`).join("");
-}
-
-function renderOverviewCards(overview) {
-  const cards = overview.overview_cards || [];
-  refs.overviewCards.innerHTML = cards
-    .map(
-      (item) => `
-        <div class="mini-stat">
-          <span>${escapeHtml(item.label)}</span>
-          <strong>${escapeHtml(item.value)}</strong>
-          <p>${escapeHtml(item.description)}</p>
-        </div>
-      `,
-    )
-    .join("");
-}
-
-function renderRuntime(overview) {
-  const runtime = overview.runtime_metrics || {};
-  const database = runtime.database || {};
-  refs.databaseBadge.textContent = database.using_fallback
-    ? "SQLite 回退模式"
-    : (database.is_external ? "外部数据库已连接" : "数据库已连接");
-  refs.databaseBadge.className = `status-badge ${database.using_fallback ? "alert-chip" : "success-chip"}`;
-  const entries = [
-    ["当前 Provider", runtime.ai_provider ?? "mock", runtime.live_llm_enabled ? "已启用真实大模型" : "当前为本地演示或回退模式"],
-    ["当前模型", runtime.model ?? "--", "由 Python 配置文件或运行时配置决定"],
-    ["数据库后端", database.backend ?? "--", database.active_url || "未识别到连接串"],
-    ["联网检索", runtime.web_retrieval_enabled ? "enabled" : "disabled", `触发阈值 ${runtime.web_retrieval_trigger_doc_count ?? "--"} 条`],
-    ["自动同步", runtime.knowledge_sync_scheduler_enabled ? "enabled" : "disabled", `间隔 ${runtime.knowledge_sync_interval_minutes ?? "--"} 分钟`],
-    ["Jira 联动", runtime.jira_configured ? "configured" : "not configured", "可把优先级报告导出成 Jira 工单"],
-    ["配置文件", runtime.python_config_file ?? "--", runtime.python_config_exists ? "本地 Python 配置文件存在" : "请按示例创建配置文件"],
-    ["平均耗时", `${runtime.average_processing_time ?? 0}s`, "按最近查询统计"],
-  ];
-  refs.runtimeCards.innerHTML = entries
-    .map(
-      ([label, value, desc]) => `
-        <div class="mini-stat">
-          <span>${escapeHtml(label)}</span>
-          <strong>${escapeHtml(value)}</strong>
-          <p>${escapeHtml(desc)}</p>
-        </div>
-      `,
-    )
-    .join("");
-
-  refs.providerStatusBadge.textContent = `${runtime.ai_provider || "mock"} · ${runtime.model || "--"}`;
-  refs.providerSnapshot.innerHTML = [
-    `Provider ${runtime.ai_provider || "mock"}`,
-    `模型 ${runtime.model || "--"}`,
-    `配置文件 ${runtime.python_config_file || "--"}`,
-    `保存方式 ${runtime.storage_mode || "--"}`,
-  ].map((item) => `<span class="meta-pill">${escapeHtml(item)}</span>`).join("");
-}
-
-function renderCoverage(overview) {
-  const coverage = overview.knowledge_coverage || {};
-  refs.coverageChip.textContent = `${coverage.total_documents || 0} 篇文档`;
-  refs.coverageGrid.innerHTML = (coverage.games || [])
-    .map(
-      (game) => `
-        <article class="coverage-card">
-          <span>${escapeHtml(game.game_id)}</span>
-          <strong>${escapeHtml(game.game_name)}</strong>
-          <p>版本 ${escapeHtml(game.version)} · 文档 ${escapeHtml(game.document_count)}</p>
-        </article>
-      `,
-    )
-    .join("");
-}
-
-function renderArchitecture(overview) {
-  refs.architectureStack.innerHTML = (overview.architecture_sections || [])
-    .map(
-      (section) => `
-        <article class="highlight-card">
-          <h3>${escapeHtml(section.title)}</h3>
-          <ul>${(section.items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
-        </article>
-      `,
-    )
-    .join("");
-}
-
-function renderApiReference(overview) {
-  refs.apiReferenceList.innerHTML = (overview.api_reference || [])
-    .map(
-      (item) => `
-        <article class="api-card">
-          <span class="api-method">${escapeHtml(item.method)}</span>
-          <strong>${escapeHtml(item.path)}</strong>
-          <p>${escapeHtml(item.name)}</p>
-          <small>${escapeHtml(item.description)}</small>
-        </article>
-      `,
-    )
-    .join("");
-}
-
-function renderPythonConfig(overview) {
-  const config = overview.python_config || {};
-  refs.pythonConfigPath.textContent = config.config_file || "config/local_provider_config.py";
-  renderList(refs.pythonConfigSteps, config.instructions || [], "暂无说明");
-  refs.pythonConfigCode.textContent = (config.sample_lines || []).join("\n");
-}
-
-function renderKnowledgeSync(overview) {
-  const sync = overview.knowledge_sync || {};
-  const scheduler = overview.knowledge_sync_scheduler || sync.scheduler || {};
-  const games = sync.games || [];
-  refs.syncStatusChip.textContent = sync.total_synced_docs
-    ? `已同步 ${sync.total_synced_docs} 篇`
-    : "尚未落库";
-
-  const topGames = games
-    .slice(0, 3)
-    .map((item) => `${item.game_id} ${item.synced_docs} 篇`)
-    .join(" / ");
-
-  const entries = [
-    ["在线文档", sync.total_synced_docs ?? 0, "已经写入数据库的联网资料数量"],
-    ["最近同步", sync.last_sync_at ? sync.last_sync_at.replace("T", " ").slice(0, 19) : "--", "最后一次成功落库时间"],
-    ["覆盖游戏", games.length || 0, topGames || "还没有同步记录"],
-    ["自动计划", scheduler.running ? "运行中" : (scheduler.enabled ? "已启用" : "未启用"), scheduler.next_run_at ? `下次 ${scheduler.next_run_at.replace("T", " ").slice(0, 19)}` : "点击下方按钮开始设置"],
-    ["默认来源", (sync.recent_sources || []).length ? "Wiki / Wikipedia" : "--", (sync.recent_sources || []).slice(0, 2).join(" | ") || "点击下方按钮开始同步"],
-  ];
-
-  refs.syncStats.innerHTML = entries
-    .map(
-      ([label, value, desc]) => `
-        <div class="mini-stat">
-          <span>${escapeHtml(label)}</span>
-          <strong>${escapeHtml(value)}</strong>
-          <p>${escapeHtml(desc)}</p>
-        </div>
-      `,
-    )
-    .join("");
-
-  refs.syncSchedulerEnabled.checked = Boolean(scheduler.enabled);
-  refs.syncInterval.value = scheduler.interval_minutes || 60;
-}
-
-function renderJira(overview) {
-  const jira = overview.jira || {};
-  refs.jiraStatusChip.textContent = jira.configured ? "已配置" : "未配置";
-  refs.jiraStats.innerHTML = [
-    ["连接状态", jira.configured ? "ready" : "missing", jira.base_url || "请在本地 Python 配置里填写 Jira 地址"],
-    ["项目 Key", jira.project_key || "--", jira.issue_type ? `默认类型 ${jira.issue_type}` : "未设置"],
-    ["账号", jira.email_masked || "--", jira.api_token_configured ? "Token 已配置" : "Token 未配置"],
-    ["标签前缀", jira.label_prefix || "rag-feedback", "导出时会自动打上这组标签"],
-  ]
-    .map(
-      ([label, value, desc]) => `
-        <div class="mini-stat">
-          <span>${escapeHtml(label)}</span>
-          <strong>${escapeHtml(value)}</strong>
-          <p>${escapeHtml(desc)}</p>
-        </div>
-      `,
-    )
-    .join("");
-}
-
-function renderAudit(audit) {
-  state.audit = audit;
-  const summary = audit.summary || {};
-  refs.auditChip.textContent = `${summary.implemented || 0} 已实现 / ${summary.partial || 0} 部分实现 / ${summary.missing || 0} 未实现`;
-  refs.auditSummary.innerHTML = [
-    ["已实现", summary.implemented ?? 0, "可以直接展示或调用"],
-    ["部分实现", summary.partial ?? 0, "已有代码但未完全打通"],
-    ["未实现", summary.missing ?? 0, "文档中提到但主流程未落地"],
-    ["总模块数", summary.total ?? 0, "按当前设计核查"],
-  ]
-    .map(
-      ([label, value, desc]) => `
-        <div class="mini-stat">
-          <span>${escapeHtml(label)}</span>
-          <strong>${escapeHtml(value)}</strong>
-          <p>${escapeHtml(desc)}</p>
-        </div>
-      `,
-    )
-    .join("");
-
-  refs.moduleAuditGrid.innerHTML = (audit.items || [])
-    .map(
-      (item) => `
-        <article class="audit-card status-${escapeHtml(item.status)}">
-          <div class="panel-header compact-header">
-            <h3>${escapeHtml(item.module)}</h3>
-            <span class="metric-chip">${escapeHtml(item.status)}</span>
-          </div>
-          <p>${escapeHtml(item.description)}</p>
-          <ul class="simple-list compact-list">
-            ${(item.evidence || []).length ? item.evidence.map((evidence) => `<li>${escapeHtml(evidence)}</li>`).join("") : "<li>暂无直接证据文件</li>"}
-          </ul>
-        </article>
-      `,
-    )
-    .join("");
-}
-
-function applyScenarioToForm(scenario) {
-  refs.gameId.value = scenario.game_id;
-  refs.questionInput.value = scenario.question;
-  refs.assistiveGuide.checked = true;
-  window.scrollTo({ top: refs.qaForm.offsetTop - 30, behavior: "smooth" });
-}
-
-function renderDemoScenarios(overview) {
-  const scenarios = overview.demo_questions || [];
-  refs.demoScenarioButtons.innerHTML = scenarios.length
-    ? scenarios
-        .map(
-          (scenario, index) => `
-            <button class="scenario-button" type="button" data-index="${index}">
-              ${escapeHtml(scenario.game_id.toUpperCase())} · ${escapeHtml(scenario.question)}
-            </button>
-          `,
-        )
-        .join("")
-    : "<p class='subtle'>暂无示例问题。</p>";
-
-  refs.demoScenarioButtons.querySelectorAll(".scenario-button").forEach((button) => {
-    button.addEventListener("click", () => {
-      const scenario = scenarios[Number(button.dataset.index)];
-      applyScenarioToForm(scenario);
-    });
-  });
-}
-
-function renderMeta(metadata = {}) {
-  const entries = [
-    ["耗时", metadata.processing_time ? `${metadata.processing_time}s` : "--"],
-    ["检索文档", metadata.retrieved ?? "--"],
-    ["日志 ID", metadata.query_log_id ?? "--"],
-    ["Provider", metadata.ai_provider ?? "--"],
-    ["检索模式", metadata.retrieval_mode ?? "--"],
-    ["联网补充", metadata.web_augmented ? `是 (${metadata.web_docs || 0})` : "否"],
-  ];
-  refs.metaRow.innerHTML = entries
-    .map(([label, value]) => `<span class="meta-pill">${escapeHtml(label)} ${escapeHtml(value)}</span>`)
-    .join("");
-}
-
-function renderSources(sources = []) {
-  refs.sourcesList.innerHTML = sources.length
-    ? sources.map((item) => `<li>${escapeHtml(item.source)}</li>`).join("")
-    : "<li>暂无来源</li>";
-}
-
-function renderAssistiveGuide(steps = []) {
-  refs.assistiveSteps.innerHTML = steps.length
-    ? steps
-        .map((step, index) => {
-          const description = step.description || "请按提示操作";
-          const cue = step.visual_cue || "";
-          return `<li><span class="step-badge">${index + 1}</span>${escapeHtml(cue)} ${escapeHtml(description)}</li>`;
-        })
-        .join("")
-    : "<li>本次未返回分步引导。</li>";
-}
-
-function renderFamilyGuide(familyGuide = null) {
-  if (!familyGuide) {
-    refs.familyGuideBox.textContent = "本次未启用祖孙协作模式。";
+  // If currently generating → abort
+  if (_currentAbortController) {
+    _currentAbortController.abort();
+    _currentAbortController = null;
     return;
   }
 
-  const guideType = familyGuide.guide_type || "general_guide";
-  const stepGuide = familyGuide.step_guide || [];
-  const tips = familyGuide.family_tips || [];
-  refs.familyGuideBox.innerHTML = `
-    <p><strong>类型：</strong>${escapeHtml(guideType)}</p>
-    <p><strong>步骤数：</strong>${escapeHtml(stepGuide.length)}</p>
-    <p><strong>家庭提示：</strong>${escapeHtml(tips.slice(0, 2).join("；") || "暂无")}</p>
-  `;
-}
-
-function renderStats(stats) {
-  refs.statsGrid.innerHTML = `
-    <div class="stat-card">
-      <span>近 7 天查询</span>
-      <strong>${escapeHtml(stats.total_queries)}</strong>
-    </div>
-    <div class="stat-card">
-      <span>平均置信度</span>
-      <strong>${Number(stats.avg_confidence || 0).toFixed(3)}</strong>
-    </div>
-    <div class="stat-card">
-      <span>平均耗时</span>
-      <strong>${Number(stats.avg_processing_time || 0).toFixed(3)}s</strong>
-    </div>
-    <div class="stat-card">
-      <span>累计反馈</span>
-      <strong>${escapeHtml(stats.total_feedback)}</strong>
-    </div>
-  `;
-}
-
-function renderTrends(days = []) {
-  if (!days.length) {
-    refs.trendBars.innerHTML = "<p class='subtle'>暂无趋势数据</p>";
-    return;
-  }
-  const maxCount = Math.max(...days.map((item) => item.count), 1);
-  refs.trendBars.innerHTML = days
-    .map((item) => {
-      const height = Math.max((item.count / maxCount) * 140, item.count ? 12 : 8);
-      const label = item.date.slice(5);
-      return `
-        <div class="trend-bar">
-          <div class="trend-fill" style="height:${height}px"></div>
-          <span class="trend-label">${escapeHtml(label)}<br>${escapeHtml(item.count)}</span>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-function renderTopQuestions(questions = []) {
-  refs.topQuestions.innerHTML = questions.length
-    ? questions.map((question) => `<li>${escapeHtml(question)}</li>`).join("")
-    : "<li>暂无数据</li>";
-}
-
-function renderPriority(items = []) {
-  refs.priorityList.innerHTML = items.length
-    ? items
-        .map(
-          (item) =>
-            `<li><strong>${escapeHtml(item.label)}</strong><span class="priority-score">${escapeHtml(item.score)}</span><br>${escapeHtml(item.title)}</li>`,
-        )
-        .join("")
-    : "<li>暂无反馈数据</li>";
-}
-
-function renderBatchDemoResults(results = [], loading = false) {
-  if (loading) {
-    refs.batchDemoResults.innerHTML = "<p class='subtle'>正在运行批量演示，请稍候...</p>";
-    return;
-  }
-
-  if (!results.length) {
-    refs.batchDemoResults.innerHTML = "<p class='subtle'>运行批量演示后，这里会显示各问题的回答结果。</p>";
-    return;
-  }
-
-  refs.batchDemoResults.innerHTML = results
-    .map(
-      (item) => `
-        <article class="batch-card">
-          <span class="chip">${escapeHtml(item.game_id.toUpperCase())}</span>
-          <p><strong>问题：</strong>${escapeHtml(item.question)}</p>
-          <p><strong>回答：</strong>${escapeHtml(item.answer)}</p>
-          <p><strong>置信度：</strong>${Number(item.confidence || 0).toFixed(3)} · <strong>耗时：</strong>${escapeHtml(item.processing_time)}s</p>
-        </article>
-      `,
-    )
-    .join("");
-}
-
-async function loadOverview() {
-  try {
-    const overview = await fetchJson("/api/v1/project/overview", nextRequestOptions("overview"));
-    state.overview = overview;
-    renderHero(overview);
-    renderOverviewCards(overview);
-    renderRuntime(overview);
-    renderCoverage(overview);
-    renderArchitecture(overview);
-    renderList(refs.implementedList, overview.implemented_modules || [], "暂无已实现模块");
-    renderApiReference(overview);
-    renderPythonConfig(overview);
-    renderKnowledgeSync(overview);
-    renderJira(overview);
-    renderDemoScenarios(overview);
-  } catch (error) {
-    if (isAbortError(error)) {
-      return;
-    }
-    throw error;
-  }
-}
-
-async function loadAudit() {
-  try {
-    const audit = await fetchJson("/api/v1/project/module-audit", nextRequestOptions("audit"));
-    renderAudit(audit);
-  } catch (error) {
-    if (isAbortError(error)) {
-      return;
-    }
-    throw error;
-  }
-}
-
-async function refreshDashboard() {
-  const gameId = refs.gameId.value;
-  try {
-    const [stats, priorities] = await Promise.all([
-      fetchJson(
-        `/api/v1/analytics/query-stats?game_id=${encodeURIComponent(gameId)}&days=7`,
-        nextRequestOptions("dashboard"),
-      ),
-      fetchJson(
-        `/api/v1/analytics/priority-report?game_id=${encodeURIComponent(gameId)}`,
-        nextRequestOptions("priority"),
-      ),
-    ]);
-    renderStats(stats);
-    renderTrends(stats.recent_days || []);
-    renderTopQuestions(stats.top_questions || []);
-    renderPriority(priorities || []);
-  } catch (error) {
-    if (isAbortError(error)) {
-      return;
-    }
-    refs.feedbackMessage.textContent = `看板刷新失败：${error.message}`;
-  }
-}
-
-async function syncProjectView(includeAudit = false) {
-  const tasks = [loadOverview(), refreshDashboard()];
-  if (includeAudit || !state.audit) {
-    tasks.push(loadAudit());
-  }
-  await Promise.all(tasks);
-}
-
-async function submitQuestion(event) {
-  event.preventDefault();
   const question = refs.questionInput.value.trim();
-  if (!question) {
-    refs.feedbackMessage.textContent = "请输入问题后再提交。";
-    return;
+  if (!question) return;
+
+  _lastUserQuestion = question;
+  const gameId = refs.gameIdInput.value;
+
+  const session = getActiveSession();
+  if (session.messages.length === 1) {
+    session.gameId = gameId;
+    session.title = question.substring(0, 15);
   }
 
-  setStatus("正在检索与生成...", true);
-  refs.feedbackMessage.textContent = "";
+  const { messageDiv: userMsgDiv } = _appendMessageDOM('user', question);
+  addMessageToSession('user', question);
 
-  try {
-    const payload = {
-      question,
-      game_id: refs.gameId.value,
-      top_k: Number(refs.topK.value || 5),
-      include_sources: true,
-      include_assistive_guide: refs.assistiveGuide.checked,
-      include_family_guide: refs.familyMode.checked,
-      enable_web_retrieval: refs.enableWebRetrieval.checked,
-      user_context: {
-        user_id: "web-user",
-        user_type: refs.userType.value,
-        difficulty_level: refs.difficultyLevel.value,
-        family_mode: refs.familyMode.checked,
-      },
-    };
+  refs.questionInput.value = '';
+  refs.questionInput.style.height = 'auto';
+  checkInput();
 
-    const result = await fetchJson("/api/v1/qa/ask", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+  const { bubbleDiv: loadingBubble, messageDiv: loadingMsg } = _appendMessageDOM('system', '正在检索并生成答案...');
+  refs.confidenceLabel.textContent = "执行中...";
 
-    state.lastQueryLogId = result.metadata?.query_log_id ?? null;
-    refs.answerBox.textContent = result.answer || "未返回回答";
-    refs.confidenceChip.textContent = `置信度 ${Number(result.confidence || 0).toFixed(3)}`;
-    renderMeta(result.metadata || {});
-    renderSources(result.sources || []);
-    renderAssistiveGuide(result.metadata?.assistive_guide || []);
-    renderFamilyGuide(result.metadata?.family_guide || null);
-    setStatus("提问完成");
-    await syncProjectView();
-  } catch (error) {
-    refs.answerBox.textContent = `请求失败：${error.message}`;
-    refs.confidenceChip.textContent = "置信度 --";
-    renderMeta({});
-    renderSources([]);
-    renderAssistiveGuide([]);
-    renderFamilyGuide(null);
-    setStatus("请求失败");
-  }
-}
+  const abortCtrl = new AbortController();
+  _currentAbortController = abortCtrl;
+  _setStopMode(true);
 
-async function submitFeedback() {
-  if (!state.selectedRating) {
-    refs.feedbackMessage.textContent = "请先选择反馈等级。";
-    return;
-  }
+  const MAX_RETRIES = 3;
+  let lastError = null;
 
-  try {
-    const payload = {
-      game_id: refs.gameId.value,
-      user_id: "web-user",
-      query_log_id: state.lastQueryLogId,
-      rating: state.selectedRating,
-      comment: refs.feedbackComment.value.trim(),
-    };
-
-    await fetchJson("/api/v1/analytics/feedback", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-
-    refs.feedbackComment.value = "";
-    refs.feedbackMessage.textContent = "反馈已记录，已纳入后续分析。";
-    await Promise.all([loadOverview(), refreshDashboard()]);
-  } catch (error) {
-    refs.feedbackMessage.textContent = `反馈提交失败：${error.message}`;
-  }
-}
-
-async function runBatchDemo() {
-  if (!state.overview?.demo_questions?.length) {
-    refs.batchDemoResults.innerHTML = "<p class='subtle'>暂无可用示例。</p>";
-    return;
-  }
-
-  renderBatchDemoResults([], true);
-  try {
-    const payload = {
-      items: state.overview.demo_questions.map((item) => ({
-        ...item,
-        user_context: {
-          user_id: "demo-batch",
-          user_type: "normal",
-        },
-      })),
-    };
-    const result = await fetchJson("/api/v1/project/demo-batch", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    renderBatchDemoResults(result.results || []);
-    await Promise.all([loadOverview(), refreshDashboard()]);
-  } catch (error) {
-    refs.batchDemoResults.innerHTML = `<p class="subtle">批量演示失败：${escapeHtml(error.message)}</p>`;
-  }
-}
-
-async function runKnowledgeSync() {
-  const gameId = refs.gameId.value;
-  refs.syncMessage.textContent = `正在同步 ${gameId} 的在线资料...`;
-  try {
-    const result = await fetchJson("/api/v1/project/knowledge-sync", {
-      method: "POST",
-      body: JSON.stringify({
-        game_id: gameId,
-        max_results_per_query: 2,
-      }),
-    });
-    refs.syncMessage.textContent = `同步完成：新增 ${result.stored_new_docs || 0} 篇，跳过 ${result.skipped_existing_docs || 0} 篇重复内容。`;
-    await Promise.all([loadOverview(), refreshDashboard()]);
-  } catch (error) {
-    refs.syncMessage.textContent = `同步失败：${error.message}`;
-  }
-}
-
-async function saveKnowledgeSyncSchedule() {
-  const gameId = refs.gameId.value;
-  refs.syncMessage.textContent = `正在保存 ${gameId} 的自动同步计划...`;
-  try {
-    const result = await fetchJson("/api/v1/project/knowledge-sync/scheduler", {
-      method: "POST",
-      body: JSON.stringify({
-        enabled: refs.syncSchedulerEnabled.checked,
-        interval_minutes: Number(refs.syncInterval.value || 60),
-        game_ids: [gameId],
-        max_results_per_query: 2,
-      }),
-    });
-    refs.syncMessage.textContent = `计划已保存：${result.enabled ? "已启用" : "已停用"}，间隔 ${result.interval_minutes} 分钟。`;
-    await loadOverview();
-  } catch (error) {
-    refs.syncMessage.textContent = `保存失败：${error.message}`;
-  }
-}
-
-async function runScheduledSyncNow() {
-  const gameId = refs.gameId.value;
-  refs.syncMessage.textContent = `正在按计划立即执行 ${gameId} 的同步...`;
-  try {
-    const result = await fetchJson("/api/v1/project/knowledge-sync/scheduler/run", {
-      method: "POST",
-      body: JSON.stringify({
-        game_ids: [gameId],
-      }),
-    });
-    refs.syncMessage.textContent = `执行完成：新增 ${result.total_stored_new_docs || 0} 篇，跳过 ${result.total_skipped_existing_docs || 0} 篇。`;
-    await loadOverview();
-  } catch (error) {
-    refs.syncMessage.textContent = `执行失败：${error.message}`;
-  }
-}
-
-async function exportJira(dryRun = true) {
-  refs.jiraMessage.textContent = dryRun ? "正在生成 Jira 预览..." : "正在创建 Jira 工单...";
-  try {
-    const result = await fetchJson("/api/v1/analytics/jira/export", {
-      method: "POST",
-      body: JSON.stringify({
-        game_id: refs.gameId.value,
-        limit: 3,
-        dry_run: dryRun,
-      }),
-    });
-    const issuePreview = (result.issues || [])
-      .map((item) => (item.jira_key ? `${item.summary} -> ${item.jira_key}` : item.summary))
-      .join("；");
-    refs.jiraMessage.textContent = dryRun
-      ? `预览完成：共 ${result.issue_count} 项。${issuePreview || "暂无可导出的优先级项。"}`
-      : `已处理 ${result.issue_count} 项。${issuePreview || "没有生成新工单。"}`
-    ;
-    await Promise.all([loadOverview(), refreshDashboard()]);
-  } catch (error) {
-    refs.jiraMessage.textContent = `Jira 导出失败：${error.message}`;
-  }
-}
-
-function bindRatingButtons() {
-  const buttons = refs.ratingRow.querySelectorAll(".rating-button");
-  buttons.forEach((button) => {
-    button.addEventListener("click", () => {
-      state.selectedRating = Number(button.dataset.rating);
-      buttons.forEach((item) => item.classList.remove("active"));
-      button.classList.add("active");
-    });
-  });
-}
-
-function setActiveNav(targetId) {
-  refs.navLinks.forEach((link) => {
-    const active = link.getAttribute("href") === `#${targetId}`;
-    link.classList.toggle("is-active", active);
-  });
-}
-
-function bindSectionNav() {
-  if (!("IntersectionObserver" in window) || !refs.sections.length) {
-    return;
-  }
-
-  const observer = new IntersectionObserver(
-    (entries) => {
-      const visible = entries
-        .filter((entry) => entry.isIntersecting)
-        .sort((left, right) => right.intersectionRatio - left.intersectionRatio);
-      if (visible.length) {
-        setActiveNav(visible[0].target.id);
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    if (abortCtrl.signal.aborted) break;
+    try {
+      if (attempt > 1) {
+        loadingBubble.textContent = `第 ${attempt}/${MAX_RETRIES} 次重试中，请稍候...`;
       }
-    },
-    {
-      rootMargin: "-18% 0px -55% 0px",
-      threshold: [0.2, 0.45, 0.7],
-    },
-  );
+      const result = await _doFetch(question, gameId, abortCtrl.signal);
 
-  refs.sections.forEach((section) => observer.observe(section));
-  refs.navLinks.forEach((link) => {
-    link.addEventListener("click", () => {
-      const targetId = link.getAttribute("href")?.replace("#", "");
-      if (targetId) {
-        setActiveNav(targetId);
+      let answerText = result.answer;
+
+      // Check if server returned a retryable error message
+      if (_isRetryableAnswer(answerText) && attempt < MAX_RETRIES) {
+        lastError = answerText;
+        continue; // auto-retry
       }
-    });
-  });
-}
 
-refs.qaForm.addEventListener("submit", submitQuestion);
-refs.submitFeedback.addEventListener("click", submitFeedback);
-refs.refreshDashboard.addEventListener("click", refreshDashboard);
-refs.gameId.addEventListener("change", refreshDashboard);
-refs.runBatchDemo.addEventListener("click", runBatchDemo);
-refs.syncSelectedGame.addEventListener("click", runKnowledgeSync);
-refs.saveSyncSchedule.addEventListener("click", saveKnowledgeSyncSchedule);
-refs.syncRunScheduled.addEventListener("click", runScheduledSyncNow);
-refs.refreshSyncStatus.addEventListener("click", () => syncProjectView(false));
-refs.previewJiraExport.addEventListener("click", () => exportJira(true));
-refs.createJiraExport.addEventListener("click", () => exportJira(false));
+      let metadataObj = null;
+      if (refs.assistiveGuide.checked && result.metadata?.assistive_guide) {
+        answerText += "\n\n【分步引导】\n" + result.metadata.assistive_guide.map((s, i) => `${i + 1}. ${s.description}`).join("\n");
+      }
+      if (result.sources && result.sources.length) {
+        metadataObj = { sources: result.sources };
+      }
 
-bindRatingButtons();
-bindSectionNav();
-syncProjectView(true).catch((error) => {
-  refs.heroSubtitle.textContent = `系统页面加载失败：${error.message}`;
-  refs.batchDemoResults.innerHTML = `<p class="subtle">初始化失败：${escapeHtml(error.message)}</p>`;
+      loadingBubble.textContent = answerText;
+      if (metadataObj && metadataObj.sources) {
+        const sourcesDiv = document.createElement('div');
+        sourcesDiv.className = 'sources-box';
+        sourcesDiv.innerHTML = `<strong>检索来源:</strong> ` + [...new Set(metadataObj.sources.map(s => s.source))].join(" ; ");
+        loadingBubble.appendChild(sourcesDiv);
+      }
+
+      addMessageToSession('system', answerText, metadataObj);
+      refs.confidenceLabel.textContent = `生成完毕 | 置信度: ${(result.confidence || 0).toFixed(2)}`;
+      lastError = null;
+      break; // success
+
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        // Remove both the user msg and loading bubble from DOM
+        if (userMsgDiv && userMsgDiv.parentNode) userMsgDiv.remove();
+        if (loadingMsg && loadingMsg.parentNode) loadingMsg.remove();
+        // Remove from session data (pop the user message we just added)
+        const sess = getActiveSession();
+        if (sess.messages.length > 0 && sess.messages[sess.messages.length - 1].role === 'user') {
+          sess.messages.pop();
+          saveSessions();
+          renderSidebar();
+        }
+        refs.confidenceLabel.textContent = "已撤回";
+        // Restore question for editing
+        refs.questionInput.value = _lastUserQuestion;
+        refs.questionInput.style.height = 'auto';
+        refs.questionInput.focus();
+        checkInput();
+        lastError = null;
+        break;
+      }
+      lastError = err.message || '未知错误';
+      if (attempt >= MAX_RETRIES) break;
+    }
+  }
+
+  if (lastError) {
+    loadingBubble.textContent = `经过 ${MAX_RETRIES} 次尝试仍失败：${lastError}\n点击消息可将问题还原到输入框重新编辑发送。`;
+    addMessageToSession('system', `请求失败：${lastError}`);
+    refs.confidenceLabel.textContent = "执行出错";
+    // Click-to-edit on error bubble
+    loadingBubble.style.cursor = 'pointer';
+    loadingBubble.addEventListener('click', () => {
+      refs.questionInput.value = _lastUserQuestion;
+      refs.questionInput.focus();
+      checkInput();
+    }, { once: true });
+  }
+
+  _currentAbortController = null;
+  _setStopMode(false);
 });
+
+// Init
+refs.historyList.addEventListener('click', (e) => {
+  const btn = e.target.closest('.delete-session-btn');
+  if (btn) {
+    e.stopPropagation();
+    e.preventDefault();
+    const targetId = btn.dataset.id;
+    // Hard purge
+    state.sessions = state.sessions.filter(s => s.id !== targetId);
+    if (!state.sessions || state.sessions.length === 0) {
+      const activeGame = (typeof refs !== 'undefined' && refs.gameIdInput) ? refs.gameIdInput.value : 'wow';
+      state.sessions = [{
+        id: generateId(),
+        title: '新对话',
+        gameId: activeGame,
+        messages: [{ role: 'system', text: '您好！我是您的游戏问答智能体，已为您开启一段全新的对话之旅。' }]
+      }];
+      state.currentSessionId = state.sessions[0].id;
+    } else if (targetId === state.currentSessionId) {
+      state.currentSessionId = state.sessions[0].id;
+    }
+    saveSessions();
+    switchSession(state.currentSessionId);
+    return;
+  }
+  
+  const item = e.target.closest('.history-item');
+  if (item) {
+    switchSession(item.dataset.id);
+  }
+});
+
+// ==================== Accordion Fold ====================
+(function initAccordion() {
+  const trigger = document.getElementById('gameDomainsTrigger');
+  const panel   = document.getElementById('gameDomainsContent');
+  const chevron = trigger ? trigger.querySelector('.chevron') : null;
+  if (!trigger || !panel) return;
+  let collapsed = false;
+  trigger.addEventListener('click', () => {
+    collapsed = !collapsed;
+    panel.classList.toggle('collapsed', collapsed);
+    if (chevron) chevron.classList.toggle('rotated', collapsed);
+  });
+})();
+
+// ==================== Custom Game Domain ====================
+(function initCustomDomain() {
+  const input = document.getElementById('customDomainInput');
+  const btn   = document.getElementById('addDomainBtn');
+  const panel = document.getElementById('gameDomainsContent');
+  if (!input || !btn || !panel) return;
+
+  function addDomain() {
+    const name = input.value.trim();
+    if (!name) return;
+    // Check duplicate
+    const exists = refs.gamePickCards.some(c => c.dataset.game === name);
+    if (exists) { input.value = ''; return; }
+
+    // Deselect all
+    refs.gamePickCards.forEach(c => c.classList.remove('active'));
+
+    const pill = document.createElement('button');
+    pill.className = 'game-pill active';
+    pill.dataset.game = name;
+    pill.textContent = name;
+
+    // Add close ×
+    const delBtn = document.createElement('span');
+    delBtn.textContent = ' ×';
+    delBtn.style.cssText = 'margin-left:4px;color:#dc2626;cursor:pointer;font-weight:bold;';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pill.remove();
+      refs.gamePickCards = refs.gamePickCards.filter(c => c !== pill);
+      if (refs.gameIdInput.value === name && refs.gamePickCards.length > 0) {
+        refs.gamePickCards[0].classList.add('active');
+        refs.gameIdInput.value = refs.gamePickCards[0].dataset.game;
+      }
+    });
+    pill.appendChild(delBtn);
+
+    pill.addEventListener('click', () => {
+      refs.gamePickCards.forEach(c => c.classList.remove('active'));
+      pill.classList.add('active');
+      refs.gameIdInput.value = name;
+      const session = getActiveSession();
+      if (session.messages.length <= 1) {
+        session.gameId = name;
+        saveSessions();
+        renderSidebar();
+      }
+    });
+
+    refs.gamePickCards.push(pill);
+    const box = panel.querySelector('.custom-domain-box');
+    if (box) panel.insertBefore(pill, box);
+    else panel.appendChild(pill);
+
+    refs.gameIdInput.value = name;
+    input.value = '';
+
+    const session = getActiveSession();
+    if (session.messages.length <= 1) {
+      session.gameId = name;
+      saveSessions();
+      renderSidebar();
+    }
+  }
+
+  btn.addEventListener('click', addDomain);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addDomain(); }
+  });
+})();
+
+initParticleLogo();
+state.currentSessionId = state.sessions[0].id;
+switchSession(state.currentSessionId);
+checkInput();

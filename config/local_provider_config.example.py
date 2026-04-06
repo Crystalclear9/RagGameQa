@@ -1,11 +1,5 @@
-"""Local Python provider config example.
-
-Copy this to `config/local_provider_config.py` and put real keys there.
-Only placeholder values are allowed in this tracked example file.
-"""
-
 LOCAL_PROVIDER_CONFIG = {
-    "AI_PROVIDER": "gemini",
+    "AI_PROVIDER": "deepseek",
     "GEMINI_API_KEY": "your-gemini-api-key",
     "GEMINI_MODEL": "gemini-2.5-flash",
     "GEMINI_API_BASE": "https://generativelanguage.googleapis.com/v1beta",
@@ -20,4 +14,10 @@ LOCAL_PROVIDER_CONFIG = {
     "JIRA_EMAIL": "your-jira-email@example.com",
     "JIRA_API_TOKEN": "your-jira-api-token",
     "JIRA_PROJECT_KEY": "RAG",
+    
+    # 兼容 OpenAI 标准的自定义代理端（使用 DEEPSEEK 占位字段）
+    # 例：使用 SiliconFlow 代理服务
+    "DEEPSEEK_API_KEY": "sk-atbmbuobehrzbiagahmshyrdksemgfkztnljehdnojlakwkq",
+    "DEEPSEEK_MODEL": "deepseek-ai/DeepSeek-V3.2",
+    "DEEPSEEK_API_BASE": "https://api.siliconflow.cn/v1",
 }

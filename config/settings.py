@@ -58,6 +58,12 @@ class Settings:
     NIM_MAX_TOKENS: int = int(_get_config_value("NIM_MAX_TOKENS", "2048"))
     NIM_TEMPERATURE: float = float(_get_config_value("NIM_TEMPERATURE", "0.2"))
 
+    DEEPSEEK_API_KEY: str = _get_config_value("DEEPSEEK_API_KEY", "")
+    DEEPSEEK_API_BASE: str = _get_config_value("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
+    DEEPSEEK_MODEL: str = _get_config_value("DEEPSEEK_MODEL", "deepseek-chat")
+    DEEPSEEK_MAX_TOKENS: int = int(_get_config_value("DEEPSEEK_MAX_TOKENS", "2048"))
+    DEEPSEEK_TEMPERATURE: float = float(_get_config_value("DEEPSEEK_TEMPERATURE", "0.7"))
+
     DEFAULT_MODEL: str = _get_config_value("DEFAULT_MODEL", "claude-sonnet-4-6")
     RUNTIME_STORAGE_MODE: str = _get_config_value("RUNTIME_STORAGE_MODE", "session")
     EMBEDDING_MODEL: str = _get_config_value("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
@@ -69,7 +75,7 @@ class Settings:
     CACHE_ENABLED: bool = _get_config_value("CACHE_ENABLED", "False").lower() == "true"
     CACHE_TTL: int = int(_get_config_value("CACHE_TTL", "3600"))
 
-    TIMEOUT_SECONDS: int = int(_get_config_value("TIMEOUT_SECONDS", "30"))
+    TIMEOUT_SECONDS: int = int(_get_config_value("TIMEOUT_SECONDS", "120"))
     MAX_RETRIES: int = int(_get_config_value("MAX_RETRIES", "3"))
 
     DB_POOL_SIZE: int = int(_get_config_value("DB_POOL_SIZE", "5"))
@@ -116,6 +122,8 @@ class Settings:
             return bool(cls.CLAUDE_API_KEY)
         if provider == "nim":
             return bool(cls.NIM_API_KEY)
+        if provider == "deepseek":
+            return bool(cls.DEEPSEEK_API_KEY)
         return False
 
 

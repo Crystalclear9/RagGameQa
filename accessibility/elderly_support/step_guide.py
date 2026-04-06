@@ -413,26 +413,26 @@ class StepGuide:
         return [
             {
                 "step_number": 1,
-                "action": "理解任务",
-                "description": f"仔细阅读任务：{task}",
+                "action": "明确信息",
+                "description": "仔细阅读并理解系统的文字解答",
                 "visual_cue": "📖",
-                "tips": "如果不理解任务要求，可以请家人帮忙解释",
+                "tips": "如果字体较小，可使用设备的放大功能",
                 "estimated_time": "1分钟"
             },
             {
                 "step_number": 2,
-                "action": "执行任务",
-                "description": "按照任务要求进行操作",
+                "action": "实践应用",
+                "description": "在真实的对局或游戏场景中尝试此技巧",
                 "visual_cue": "🎯",
-                "tips": "遇到困难时可以寻求帮助",
+                "tips": "熟能生巧，不要害怕失败",
                 "estimated_time": "5分钟"
             },
             {
                 "step_number": 3,
-                "action": "确认完成",
-                "description": "检查任务是否完成",
+                "action": "总结调整",
+                "description": "根据结果总结经验并随时向我提问",
                 "visual_cue": "✅",
-                "tips": "确认任务完成后再进行下一步",
+                "tips": "可以随时开始新的对话向我寻求进一步帮助",
                 "estimated_time": "30秒"
             }
         ]

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = PROJECT_ROOT / ".env"
-SUPPORTED_PROVIDERS = {"mock", "gemini", "claude", "nim"}
+SUPPORTED_PROVIDERS = {"mock", "gemini", "claude", "nim", "deepseek"}
 SUPPORTED_STORAGE_MODES = {"session", "secure_local", "env"}
 
 PROVIDER_MODEL_FIELD = {
@@ -27,6 +27,7 @@ PROVIDER_MODEL_FIELD = {
     "gemini": "GEMINI_MODEL",
     "claude": "CLAUDE_MODEL",
     "nim": "NIM_MODEL",
+    "deepseek": "DEEPSEEK_MODEL",
 }
 
 PROVIDER_KEY_FIELD = {
@@ -34,6 +35,7 @@ PROVIDER_KEY_FIELD = {
     "gemini": "GEMINI_API_KEY",
     "claude": "CLAUDE_API_KEY",
     "nim": "NIM_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
 }
 
 PROVIDER_DEFAULT_MODEL = {
@@ -41,6 +43,7 @@ PROVIDER_DEFAULT_MODEL = {
     "gemini": settings.GEMINI_MODEL,
     "claude": settings.CLAUDE_MODEL,
     "nim": settings.NIM_MODEL,
+    "deepseek": settings.DEEPSEEK_MODEL,
 }
 
 PROVIDER_CATALOG = {
@@ -82,6 +85,16 @@ PROVIDER_CATALOG = {
         "models": [
             {"id": settings.NIM_MODEL or "meta/llama-3.1-70b-instruct", "label": "当前本地默认模型", "stage": "config"},
             {"id": "自定义填写", "label": "按你的 NIM 部署模型填写", "stage": "custom"},
+        ],
+    },
+    "deepseek": {
+        "recommended": settings.DEEPSEEK_MODEL or "deepseek-chat",
+        "latest_verified_at": "2026-04-06",
+        "source_url": "https://platform.deepseek.com",
+        "models": [
+            {"id": settings.DEEPSEEK_MODEL or "deepseek-chat", "label": "当前配置模型", "stage": "config"},
+            {"id": "deepseek-chat", "label": "DeepSeek-V3", "stage": "stable"},
+            {"id": "deepseek-reasoner", "label": "DeepSeek-R1", "stage": "stable"},
         ],
     },
 }

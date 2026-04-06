@@ -41,8 +41,13 @@ class LLMGenerator:
             self.temperature = settings.NIM_TEMPERATURE
             self.max_tokens = settings.NIM_MAX_TOKENS
             logger.info("Using NVIDIA NIM / OpenAI-compatible model %s", self.model_name)
+        elif self.ai_provider == "deepseek" and settings.DEEPSEEK_API_KEY:
+            self.model_name = settings.DEEPSEEK_MODEL
+            self.temperature = settings.DEEPSEEK_TEMPERATURE
+            self.max_tokens = settings.DEEPSEEK_MAX_TOKENS
+            logger.info("Using DeepSeek model %s", self.model_name)
         else:
-            if self.ai_provider in {"gemini", "claude", "nim"}:
+            if self.ai_provider in {"gemini", "claude", "nim", "deepseek"}:
                 logger.warning("%s is selected but API key is missing, fallback to mock mode", self.ai_provider)
             self.ai_provider = "mock"
             logger.info("Using mock generator for %s", game_id)
@@ -75,23 +80,25 @@ class LLMGenerator:
         accessibility_note = "如果用户是老年人，请尽量用更简单、分步骤的中文回答。" if user_type == "elderly" else ""
 
         system_prompt = (
-            "你是一个专业的游戏问答助手。"
-            "请优先依据检索到的知识上下文回答，不能编造不存在的信息。"
-            "如果上下文不足，请明确说明信息有限，并给出保守建议。"
+            "你是一个专业的游戏问答大模型助手。"
+            "【黑话术语宽容规则】：如果用户使用了常见的游戏术语、社区黑话或英雄简称（如将'嘉文四世'称为'皇子'），请你结合大模型的内置游戏常识将其映射到正确的官方名称，并结合检索到的上下文回答。\n"
+            "【详尽解析规则】：由于用户希望获得全方位的信息，请你务必极度详细地展开解答！多使用换行、分步、并且尽可能深入地挖掘核心打法与数据分析，字数必须要非常多且逻辑严密，切忌敷衍或过短。\n"
+            "如果你完全不认识某个名字，且上下文中也没有提到任何相关信息，请明确回答'未能查找到有关该角色的确切资料'，绝对不要生搬硬套。\n"
+            "请严格依据检索到的知识上下文回答，严禁编造不存在的机制、背景或数值。"
         )
 
         user_prompt = f"""
-游戏ID：{self.game_id}
+目标游戏：{self.game_id}
 
-知识上下文：
-{context or "当前没有检索到可靠上下文。"}
+【检索提供的上下文知识】：
+{context or "当前没有检索到足够可靠的上下文。"}
 
-用户问题：{question}
+用户最终问题：{question}
 
 回答要求：
-1. 先直接回答核心问题。
-2. 再给出 2-4 条清晰建议或步骤。
-3. 只在上下文支持时给出确定性结论。
+1. 请先判定用户问题中的人名/专有名词是否在知识边界或上下文中。若包含无法确认的角色，立即声明未查到，切勿强行联系！
+2. 先直接回答核心问题。
+3. 只在上下文或确定常识支持时给出确定性结论。
 4. 使用中文输出。
 {accessibility_note}
 """
@@ -110,6 +117,8 @@ class LLMGenerator:
             return await self._call_claude(system_prompt, user_prompt)
         if self.ai_provider == "nim":
             return await self._call_nim(system_prompt, user_prompt)
+        if self.ai_provider == "deepseek":
+            return await self._call_deepseek(system_prompt, user_prompt)
         return self._generate_mock_answer(question, context_docs)
 
     async def _call_gemini(self, system_prompt: str, user_prompt: str) -> str:
@@ -257,6 +266,49 @@ class LLMGenerator:
             if isinstance(content, str) and content.strip():
                 return content.strip()
         return "NIM 未返回可用内容，请检查模型名称或部署状态。"
+
+    async def _call_deepseek(self, system_prompt: str, user_prompt: str) -> str:
+        endpoint = f"{settings.DEEPSEEK_API_BASE.rstrip('/')}/chat/completions"
+        payload = {
+            "model": self.model_name,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
+        }
+
+        try:
+            response = await asyncio.to_thread(
+                requests.post,
+                endpoint,
+                headers=headers,
+                json=payload,
+                timeout=max(settings.TIMEOUT_SECONDS, 120),
+            )
+            response.raise_for_status()
+            data = response.json()
+        except requests.HTTPError as exc:
+            return self._provider_http_error_message("DeepSeek", exc)
+        except requests.RequestException as exc:
+            logger.warning("DeepSeek request failed: %s", redact_sensitive_text(exc))
+            return "DeepSeek 连接失败，请检查网络、API Base。"
+        except Exception as exc:
+            logger.error("DeepSeek request error: %s", redact_sensitive_text(exc), exc_info=True)
+            return "DeepSeek 请求异常，请稍后重试。"
+
+        choices = data.get("choices") or []
+        for choice in choices:
+            message = choice.get("message") or {}
+            content = message.get("content")
+            if isinstance(content, str) and content.strip():
+                return content.strip()
+        return "DeepSeek 未返回可用内容，请稍后重试。"
 
     def _provider_http_error_message(self, provider_name: str, exc: requests.HTTPError) -> str:
         status = exc.response.status_code if exc.response is not None else None

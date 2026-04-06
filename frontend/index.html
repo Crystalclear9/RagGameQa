@@ -3,324 +3,116 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Cache-Control" content="no-store">
-  <title>RAG 游戏问答系统 | 项目控制台</title>
-  <link rel="stylesheet" href="/assets/styles.css">
+  <title>GameQA Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/styles.css?v=75">
 </head>
 <body>
-  <main class="layout">
-    <section class="hero panel panel-hero">
-      <div class="hero-copy-block">
-        <p class="eyebrow">RAG Game QA System</p>
-        <h1 id="heroTitle">RAG 游戏问答系统</h1>
-        <p id="heroSubtitle" class="hero-copy">问答、知识同步与反馈分析控制台</p>
-        <div id="heroChips" class="chip-row"></div>
-      </div>
-      <div class="hero-actions">
-        <a class="ghost-button" href="/docs" target="_blank" rel="noreferrer">Swagger 文档</a>
-        <a class="ghost-button" href="/api/v1/project/module-audit" target="_blank" rel="noreferrer">模块核查 JSON</a>
-        <button id="runBatchDemo" class="primary-button" type="button">运行示例问题</button>
-      </div>
-    </section>
-
-    <nav class="section-nav panel" aria-label="页面导航">
-      <a href="#overviewSection" class="nav-link is-active">系统概览</a>
-      <a href="#syncSection" class="nav-link">知识同步</a>
-      <a href="#qaSection" class="nav-link">问答演示</a>
-      <a href="#dashboardSection" class="nav-link">数据看板</a>
-    </nav>
-
-    <section id="overviewSection" class="summary-grid">
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>系统概览</h2>
-          <span class="metric-chip">项目能力</span>
-        </div>
-        <div id="overviewCards" class="mini-stats"></div>
-      </article>
-
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>运行状态</h2>
-          <span id="databaseBadge" class="status-badge">检测中</span>
-        </div>
-        <div id="runtimeCards" class="mini-stats"></div>
-      </article>
-
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>知识库覆盖</h2>
-          <span id="coverageChip" class="metric-chip">加载中</span>
-        </div>
-        <div id="coverageGrid" class="coverage-grid"></div>
-      </article>
-
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>模块核查</h2>
-          <span id="auditChip" class="metric-chip">读取中</span>
-        </div>
-        <div id="auditSummary" class="mini-stats"></div>
-      </article>
-    </section>
-
-    <section id="syncSection" class="deep-grid">
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>架构设计</h2>
-          <span class="metric-chip">模块视图</span>
-        </div>
-        <div id="architectureStack" class="highlight-stack"></div>
-      </article>
-
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>已接入模块</h2>
-          <span class="metric-chip">可演示</span>
-        </div>
-        <ul id="implementedList" class="simple-list"></ul>
-      </article>
-
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>RAG API</h2>
-          <span class="metric-chip">接口清单</span>
-        </div>
-        <div id="apiReferenceList" class="api-reference"></div>
-      </article>
-
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>Python 配置</h2>
-          <span id="providerStatusBadge" class="metric-chip">读取中</span>
-        </div>
-        <div class="config-guide">
-          <div class="meta-row" id="providerSnapshot"></div>
-          <div class="detail-item config-path-card">
-            <span>配置文件</span>
-            <strong id="pythonConfigPath">config/local_provider_config.py</strong>
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-title-wrap" style="display: flex; align-items: center; gap: 0.8rem;">
+          <div class="brand-logo" style="width: 32px; height: 32px; position: relative;">
+            <canvas id="particleLogo" width="32" height="32" style="position: absolute; top:0; left:0; width: 100%; height: 100%;"></canvas>
           </div>
-          <ul id="pythonConfigSteps" class="simple-list"></ul>
-          <pre id="pythonConfigCode" class="code-block"></pre>
+          <h1 class="brand-title">GameQA</h1>
         </div>
-      </article>
-
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>联网知识同步</h2>
-          <span id="syncStatusChip" class="metric-chip">读取中</span>
-        </div>
-        <div id="syncStats" class="mini-stats"></div>
-        <div class="sync-controls">
-          <label class="compact-control">
-            <span>自动同步</span>
-            <input id="syncSchedulerEnabled" type="checkbox">
-          </label>
-          <label class="compact-control">
-            <span>间隔（分钟）</span>
-            <input id="syncInterval" type="number" min="5" max="1440" value="60">
-          </label>
-        </div>
-        <div class="hero-actions">
-          <button id="syncSelectedGame" class="secondary-button" type="button">同步当前游戏</button>
-          <button id="syncRunScheduled" class="secondary-button" type="button">立即执行计划</button>
-          <button id="saveSyncSchedule" class="ghost-button" type="button">保存自动同步</button>
-          <button id="refreshSyncStatus" class="text-button" type="button">刷新状态</button>
-        </div>
-        <p id="syncMessage" class="feedback-message"></p>
-      </article>
-
-      <article class="panel card">
-        <div class="panel-header">
-          <h2>Jira 联动</h2>
-          <span id="jiraStatusChip" class="metric-chip">读取中</span>
-        </div>
-        <div id="jiraStats" class="mini-stats"></div>
-        <div class="hero-actions">
-          <button id="previewJiraExport" class="secondary-button" type="button">预览当前游戏导出</button>
-          <button id="createJiraExport" class="ghost-button" type="button">创建 Jira 工单</button>
-        </div>
-        <p id="jiraMessage" class="feedback-message"></p>
-      </article>
-    </section>
-
-    <section class="panel">
-      <div class="panel-header">
-        <h2>模块实现状态</h2>
-        <span class="metric-chip">按设计文档核查</span>
+        <button id="newChatBtn" class="new-chat-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          新对话
+        </button>
       </div>
-      <div id="moduleAuditGrid" class="audit-grid"></div>
-    </section>
-
-    <section class="panel demo-panel panel-demo">
-      <div class="panel-header">
-        <h2>示例问题</h2>
-        <span class="metric-chip">一键填充 / 批量演示</span>
-      </div>
-      <div id="demoScenarioButtons" class="scenario-row"></div>
-      <div id="batchDemoResults" class="batch-results">
-        <p class="subtle">点击即可快速填充，也可以直接运行整组示例。</p>
-      </div>
-    </section>
-
-    <section id="qaSection" class="question-panel panel panel-form">
-      <div class="panel-header">
-        <h2>问答演示</h2>
-        <span id="statusBadge" class="status-badge">待提问</span>
-      </div>
-
-      <form id="qaForm" class="qa-form">
-        <label>
-          游戏
-          <select id="gameId">
-            <option value="wow">魔兽世界</option>
-            <option value="lol">英雄联盟</option>
-            <option value="genshin">原神</option>
-            <option value="minecraft">我的世界</option>
-            <option value="valorant">无畏契约</option>
-            <option value="apex">Apex 英雄</option>
-          </select>
-        </label>
-
-        <label>
-          用户类型
-          <select id="userType">
-            <option value="normal">普通用户</option>
-            <option value="elderly">老年玩家</option>
-            <option value="visual_impairment">视障用户</option>
-            <option value="hearing_impairment">听障用户</option>
-          </select>
-        </label>
-
-        <label>
-          引导难度
-          <select id="difficultyLevel">
-            <option value="beginner">beginner</option>
-            <option value="intermediate">intermediate</option>
-            <option value="advanced">advanced</option>
-          </select>
-        </label>
-
-        <label>
-          来源数量
-          <input id="topK" type="number" min="1" max="10" value="5">
-        </label>
-
-        <label class="toggle">
-          <input id="enableWebRetrieval" type="checkbox" checked>
-          <span>启用联网检索补充</span>
-        </label>
-
-        <label class="toggle">
-          <input id="assistiveGuide" type="checkbox">
-          <span>返回分步引导</span>
-        </label>
-
-        <label class="toggle">
-          <input id="familyMode" type="checkbox">
-          <span>启用祖孙协作模式</span>
-        </label>
-
-        <label class="question-field">
-          你的问题
-          <textarea id="questionInput" rows="5" placeholder="例如：原神里怎么高效触发蒸发反应？"></textarea>
-        </label>
-
-        <button class="primary-button" type="submit">开始提问</button>
-      </form>
-    </section>
-
-    <section id="dashboardSection" class="content-grid">
-      <article class="panel answer-panel panel-answer">
-        <div class="panel-header">
-          <h2>回答结果</h2>
-          <span id="confidenceChip" class="metric-chip">置信度 --</span>
-        </div>
-
-        <div id="answerBox" class="answer-box">回答会显示在这里。</div>
-        <div class="meta-row" id="metaRow"></div>
-
-        <section class="subpanel">
-          <h3>来源文档</h3>
-          <ul id="sourcesList" class="simple-list">
-            <li>暂无来源</li>
-          </ul>
-        </section>
-
-        <section class="subpanel">
-          <h3>无障碍分步引导</h3>
-          <ol id="assistiveSteps" class="steps-list">
-            <li>勾选“返回分步引导”后提问，这里会显示辅助步骤。</li>
-          </ol>
-        </section>
-
-        <section class="subpanel">
-          <h3>祖孙协作摘要</h3>
-          <div id="familyGuideBox" class="subtle">启用祖孙协作模式后，这里会显示拼音图文指南摘要。</div>
-        </section>
-
-        <section class="subpanel feedback-panel">
-          <h3>反馈闭环</h3>
-          <p class="subtle">反馈会直接进入统计和优先级分析。</p>
-          <div class="rating-row" id="ratingRow">
-            <button type="button" class="rating-button" data-rating="5">很有帮助</button>
-            <button type="button" class="rating-button" data-rating="4">基本可用</button>
-            <button type="button" class="rating-button" data-rating="2">结果欠佳</button>
-            <button type="button" class="rating-button" data-rating="1">明显错误</button>
-          </div>
-          <textarea id="feedbackComment" rows="3" placeholder="可以补充说明哪里答得好，哪里还需要改进。"></textarea>
-          <button id="submitFeedback" class="secondary-button" type="button">提交反馈</button>
-          <p id="feedbackMessage" class="feedback-message"></p>
-        </section>
-      </article>
-
-      <aside class="panel dashboard-panel panel-dashboard">
-        <div class="panel-header">
-          <h2>实时数据看板</h2>
-          <button id="refreshDashboard" class="text-button" type="button">刷新</button>
-        </div>
-
-        <div class="stats-grid" id="statsGrid">
-          <div class="stat-card">
-            <span>近 7 天查询</span>
-            <strong>0</strong>
-          </div>
-          <div class="stat-card">
-            <span>平均置信度</span>
-            <strong>0.000</strong>
-          </div>
-          <div class="stat-card">
-            <span>平均耗时</span>
-            <strong>0.000s</strong>
-          </div>
-          <div class="stat-card">
-            <span>累计反馈</span>
-            <strong>0</strong>
+      
+      <div class="sidebar-section domains-section">
+        <h3 class="section-title collapse-trigger" id="gameDomainsTrigger" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+          <span>选择游戏领域</span>
+          <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="transition: transform 0.3s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </h3>
+        <div class="game-pills game-pills-collapse" id="gameDomainsContent">
+          <button class="game-pill active" data-game="wow">魔兽世界</button>
+          <button class="game-pill" data-game="lol">英雄联盟</button>
+          <button class="game-pill" data-game="genshin">原神</button>
+          <button class="game-pill" data-game="minecraft">我的世界</button>
+          <div class="custom-domain-box" style="display:flex; margin-top:0.4rem; gap:0.4rem; width:100%;">
+            <input type="text" id="customDomainInput" placeholder="自定义游戏名" style="flex:1; border:1px solid #cbd5e1; border-radius:0.375rem; padding:0.25rem 0.5rem; font-size:0.875rem;">
+            <button id="addDomainBtn" style="background:var(--brand-color); color:white; border:none; border-radius:0.375rem; padding:0 0.5rem; font-size:1rem; cursor:pointer;" title="添加自定义领域">+</button>
           </div>
         </div>
+        <input type="hidden" id="gameId" value="wow">
+      </div>
 
-        <section class="subpanel">
-          <h3>近 7 天查询趋势</h3>
-          <div id="trendBars" class="trend-bars"></div>
-        </section>
+      <div class="sidebar-section stretch">
+        <h3 class="section-title">最近提问</h3>
+        <div id="historyList" class="history-list">
+          <!-- History items injected here -->
+        </div>
+      </div>
+    </aside>
 
-        <section class="subpanel">
-          <h3>高频问题</h3>
-          <ul id="topQuestions" class="simple-list">
-            <li>暂无数据</li>
-          </ul>
-        </section>
-
-        <section class="subpanel">
-          <h3>优先级报告</h3>
-          <ul id="priorityList" class="priority-list">
-            <li>暂无反馈数据</li>
-          </ul>
-        </section>
-      </aside>
-    </section>
-  </main>
-
-  <script src="/assets/app.js" defer></script>
+    <!-- Main Chat Area -->
+    <main class="chat-main">
+      <div id="chatContainer" class="chat-container">
+        <div class="message system-message">
+          <div class="avatar system-avatar" title="GameQA Agent"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10a8 8 0 0 1 16 0v5"></path><rect x="2" y="10" width="4" height="7" rx="1.5"></rect><rect x="18" y="10" width="4" height="7" rx="1.5"></rect><rect x="7" y="9" width="10" height="6" rx="2" fill="currentColor" fill-opacity="0.15"></rect><circle cx="9.5" cy="12" r="1.5" fill="currentColor"></circle><circle cx="14.5" cy="12" r="1.5" fill="currentColor"></circle><path d="M20 15v2c0 1-1 1.5-1 1.5l-2.5 .5"></path></svg></div>
+          <div class="bubble">您好！我是您的游戏问答智能体，已为您开启一段全新的对话之旅。</div>
+        </div>
+      </div>
+      
+      <div class="input-area-wrapper">
+        <form id="chatForm" class="chat-form">
+          <!-- The + Menu Button -->
+          <div class="plus-menu-container">
+            <button type="button" class="plus-btn" id="plusMenuBtn" title="附件与功能">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </button>
+            <div class="plugins-menu" id="pluginsMenu">
+              <label class="plugin-item">
+                <input type="checkbox" id="enableWebRetrieval" checked>
+                <div class="plugin-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg></div>
+                <div class="plugin-text">
+                  <span class="plugin-title">联网搜索</span>
+                  <span class="plugin-desc">允许利用网络查询缺失的资料</span>
+                </div>
+              </label>
+              <label class="plugin-item">
+                <input type="checkbox" id="assistiveGuide">
+                <div class="plugin-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg></div>
+                <div class="plugin-text">
+                  <span class="plugin-title">分步辅助</span>
+                  <span class="plugin-desc">生成更详细的操作向导</span>
+                </div>
+              </label>
+              <label class="plugin-item">
+                <input type="checkbox" id="familyMode">
+                <div class="plugin-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></div>
+                <div class="plugin-text">
+                  <span class="plugin-title">长辈模式</span>
+                  <span class="plugin-desc">精简易懂的解答口吻</span>
+                </div>
+              </label>
+            </div>
+          </div>
+          
+          <textarea id="questionInput" class="chat-input" placeholder="输入你想了解的游戏资料..." rows="1"></textarea>
+          
+          <div class="toolbar-right">
+            <button type="button" class="voice-btn" id="voiceBtn" title="语音识别">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+            </button>
+            <button type="submit" class="send-btn" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            </button>
+          </div>
+        </form>
+        <div class="trust-badge">
+          <span id="confidenceLabel">实时基于知识库与多模态分析</span>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="/assets/app.js?v=75"></script>
 </body>
 </html>

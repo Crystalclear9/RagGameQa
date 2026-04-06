@@ -72,8 +72,8 @@ async def secure_request_middleware(request: Request, call_next):
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["Permissions-Policy"] = "microphone=(), camera=(), geolocation=()"
 
-    if request.url.path == "/app" or request.url.path.startswith("/api/"):
-        response.headers["Cache-Control"] = "no-store, max-age=0"
+    if request.url.path == "/app" or request.url.path.startswith("/api/") or request.url.path.startswith("/assets/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, max-age=0, must-revalidate"
         response.headers["Pragma"] = "no-cache"
 
     logger.info(
