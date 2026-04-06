@@ -1,73 +1,132 @@
-# RAG 游戏问答系统
+# RAG 游戏问答智能体 (GameQA)
 
-这是一个面向游戏资料问答的 RAG 应用，提供本地知识库检索、联网补充检索、知识同步、反馈分析和 Web 控制台。项目默认可直接本地运行，也支持切换到 PostgreSQL 作为外部持久化数据库。
+> 基于 **检索增强生成 (RAG)** 架构的游戏领域智能问答系统。支持多游戏知识库、多模型热切换、联网知识同步与现代化聊天交互界面。
 
-当前仓库已经整理为可以直接演示和继续开发的状态，日常使用主要围绕以下几部分：
+---
 
-- `FastAPI` 接口与 Swagger 文档
-- `/app` 赛博游戏风全息图形交互界面 (Cyber-HUD)
-- 本地数据库检索与联网知识同步
-- DeepSeek及多主模型自由切换架构
-- 多模态功能：无缝集成 BLIP-2 视觉模型与 Wav2Vec2.0 语音方言模型（支持听障、视障辅助）
-- 问答日志、反馈统计、优先级分析
-- Jira 导出
+## ✨ 功能亮点
 
-## 目录结构
+| 模块 | 能力 |
+|------|------|
+| **RAG 核心引擎** | BM25 + Sentence-Transformers 混合检索，可选 BERT 重排序 |
+| **多模型架构** | DeepSeek / Gemini / Claude / NVIDIA NIM / Mock 一键切换 |
+| **现代化 Chat UI** | 粒子动画品牌标识、多会话管理、实时对话交互 |
+| **智能容错** | 自动重试（最多 3 次）、请求中止与撤回、120s 超时保底 |
+| **自定义游戏领域** | 内置魔兽世界/英雄联盟/原神/我的世界，支持任意添加/删除 |
+| **会话管理** | LocalStorage 持久化、多会话并行、一键新建/删除 |
+| **黑话别名容忍** | LLM 自动映射游戏社区黑话（如"皇子" → "嘉文四世"） |
+| **联网知识同步** | 本地知识不足时自动触发联网补充检索 |
+| **知识同步调度** | 支持定时自动同步与手动触发 |
+| **辅助功能** | 分步引导模式、长辈/祖孙协作模式 |
+| **数据库双模式** | PostgreSQL（生产）+ SQLite（自动回退） |
+| **多模态（实验）** | BLIP-2 图像描述、Wav2Vec2.0 语音/方言识别 |
+| **数据分析** | 查询统计、置信度分析、优先级报告、Jira 导出 |
+
+---
+
+## 📁 项目结构
 
 ```text
-api/            FastAPI 入口与路由
-accessibility/  分步引导、家庭协作等辅助模块
-config/         配置、数据库、运行时设置
-core/           RAG 主流程、检索与知识同步
-data/           示例数据、爬虫和本地数据库文件
-frontend/       Web 图形界面
-integrations/   外部系统集成
-multimodal/     语音、图像、触觉相关模块
-scripts/        初始化、测试、同步和运维脚本
-utils/          通用工具与安全处理
-deployment/     Docker 相关文件
+rag_game_qa_system/
+├── api/                FastAPI 入口、路由与中间件
+│   ├── main.py         应用主入口（含安全中间件、缓存控制）
+│   └── routes/         qa / analytics / project / runtime / multimodal / health 路由
+├── accessibility/      辅助功能模块
+│   └── elderly_support/  分步引导、家庭协作、触觉反馈
+├── config/             配置层
+│   ├── settings.py     全局配置类（含所有模型参数、超时、RAG 开关）
+│   ├── database.py     数据库初始化与 SQLite 回退逻辑
+│   ├── local_provider_config.py          ← 你的私有配置（已 .gitignore）
+│   └── local_provider_config.example.py  ← 配置模板
+├── core/               核心业务逻辑
+│   ├── generator/      LLM 生成器（含 DeepSeek/Gemini/Claude/NIM 调用）
+│   │   ├── llm_generator.py    多模型统一调用 + 系统提示词工程
+│   │   ├── domain_adapter.py   游戏领域适配器
+│   │   └── response_formatter.py 回答格式化
+│   ├── retriever/      检索层（BM25 + 向量检索 + BERT 重排序）
+│   ├── rag_engine.py   RAG 主流程编排
+│   └── knowledge_base/ 知识库管理与同步调度
+├── data/               数据存储
+│   ├── rag_game_qa.db  SQLite 数据库文件
+│   ├── sample_data.json 示例游戏知识
+│   └── crawlers/       分布式爬虫
+├── frontend/           Web 前端
+│   ├── index.html      页面结构（粒子 Logo、侧边栏、聊天区）
+│   ├── styles.css      样式系统（手风琴动画、头像交互、停止按钮）
+│   └── app.js          应用逻辑（会话管理、重试、中止、自定义领域）
+├── multimodal/         多模态模块
+│   ├── speech/         ASR 语音识别、方言识别
+│   └── visual/         BLIP-2 图像描述
+├── integrations/       外部集成
+│   └── jira/           Jira 问题导出
+├── scripts/            运维与初始化脚本
+├── deployment/         Docker 部署配置
+├── utils/              通用工具（安全脱敏、文本处理）
+├── run_server.py       一键启动入口
+└── requirements.txt    Python 依赖清单
 ```
 
-## 运行环境
+---
 
-- Python 3.11
-- Windows 或 Linux
-- 可选：PostgreSQL
-- 可选：Gemini、Claude、NVIDIA NIM 的 API Key
+## 🖥️ 图形界面详解
 
-如果暂时不接入在线模型，可以直接使用 `mock` 模式启动项目。
+启动服务后访问 `http://localhost:8000/app`，界面采用现代化聊天风格设计。
 
-## 配置机制
+### 侧边栏（左侧）
 
-项目配置分为两层：
+| 区域 | 功能 |
+|------|------|
+| **品牌标识** | HTML5 Canvas 粒子动画网络 Logo |
+| **新对话** | 一键创建新会话，自动继承当前选中的游戏领域 |
+| **游戏领域选择** | 可折叠手风琴面板，内置 4 款游戏，支持点击切换 |
+| **自定义游戏输入** | 输入框 + `+` 按钮，可动态添加任意游戏领域（如"黑神话悟空"） |
+| **自定义领域删除** | 每个自定义领域徽章右侧带红色 `×` 一键移除 |
+| **历史会话列表** | 显示所有会话标题，支持点击切换、悬停显示删除按钮 |
 
-1. `.env`
-2. `config/local_provider_config.py`
+### 聊天主区域（右侧）
 
-最终生效顺序如下：
+| 功能 | 说明 |
+|------|------|
+| **实时对话** | 类 ChatGPT 式气泡布局，支持长文本自动换行 |
+| **头像动画交互** | 点击机器人头像触发 360° 旋转 + 蓝色光晕爆发；点击用户头像触发弹性摇晃 + 水波纹扩散 |
+| **发送 / 停止按钮** | 发送后按钮变为红色脉冲 ⏹ 停止按钮，可随时中止请求 |
+| **中止撤回** | 点击停止后，用户消息与加载气泡完全从界面和会话中删除，问题自动回填输入框 |
+| **自动重试** | 检测到"连接失败"或超时后自动重试最多 3 次，显示"第 N/3 次重试中" |
+| **失败可编辑** | 3 次重试仍失败时，点击错误消息气泡可将问题还原到输入框重新编辑发送 |
+| **检索来源** | 回答下方展示知识来源文档出处 |
+| **置信度** | 底栏实时显示生成状态与置信度评分 |
 
-`config/local_provider_config.py` > `.env`
+### 插件面板
 
-也就是说，若两个位置都定义了同名字段，以 `config/local_provider_config.py` 为准。
+| 插件 | 说明 |
+|------|------|
+| **联网搜索** | 本地知识不足时自动触发在线检索补充 |
+| **分步辅助** | 生成更详细的操作步骤向导 |
+| **长辈模式** | 精简易懂的回答口吻，适合非核心玩家 |
+| **语音输入** | 基于 Web Speech API 的语音识别输入 |
 
-推荐做法：
+---
 
-- 服务地址、数据库、RAG 行为开关放在 `.env`
-- API Key、模型名称、Jira 凭据放在 `config/local_provider_config.py`
+## ⚙️ 运行环境
 
-`config/local_provider_config.py` 已加入 `.gitignore`，不会被提交到远程仓库。
+- **Python** 3.11+
+- **操作系统**：Windows / Linux / macOS
+- **可选**：PostgreSQL（推荐用于生产环境）
+- **可选**：模型 API Key（DeepSeek / Gemini / Claude / NVIDIA NIM）
 
-## 安装与准备
+> 没有模型 API Key？可使用 `mock` 模式立即启动体验界面。
+
+---
+
+## 🚀 快速开始
 
 ### 1. 安装依赖
-
-PowerShell:
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-如果要使用 PostgreSQL，建议额外安装驱动：
+如需 PostgreSQL 支持：
 
 ```powershell
 pip install psycopg[binary]
@@ -80,11 +139,11 @@ Copy-Item .env.example .env
 Copy-Item config\local_provider_config.example.py config\local_provider_config.py
 ```
 
-### 3. 准备模型配置
+### 3. 配置模型（按需选择一种）
 
-实际模型和密钥建议写在 `config/local_provider_config.py` 中，不建议通过网页输入。
+编辑 `config/local_provider_config.py`：
 
-最小可运行配置：
+**最小可运行（无需 API Key）：**
 
 ```python
 LOCAL_PROVIDER_CONFIG = {
@@ -92,7 +151,18 @@ LOCAL_PROVIDER_CONFIG = {
 }
 ```
 
-Gemini 配置示例：
+**DeepSeek 配置（推荐）：**
+
+```python
+LOCAL_PROVIDER_CONFIG = {
+    "AI_PROVIDER": "deepseek",
+    "DEEPSEEK_API_KEY": "your-deepseek-api-key",
+    "DEEPSEEK_API_BASE": "https://api.siliconflow.cn/v1",   # 或 https://api.deepseek.com/v1
+    "DEEPSEEK_MODEL": "deepseek-ai/DeepSeek-V3",
+}
+```
+
+**Gemini 配置：**
 
 ```python
 LOCAL_PROVIDER_CONFIG = {
@@ -103,7 +173,7 @@ LOCAL_PROVIDER_CONFIG = {
 }
 ```
 
-Claude 配置示例：
+**Claude 配置：**
 
 ```python
 LOCAL_PROVIDER_CONFIG = {
@@ -115,7 +185,7 @@ LOCAL_PROVIDER_CONFIG = {
 }
 ```
 
-NVIDIA NIM 配置示例：
+**NVIDIA NIM 配置：**
 
 ```python
 LOCAL_PROVIDER_CONFIG = {
@@ -126,68 +196,9 @@ LOCAL_PROVIDER_CONFIG = {
 }
 ```
 
-DeepSeek 配置示例：
+> ⚠️ 修改配置后需要重启服务。密钥不要写入 `.env.example`、README 或前端页面。
 
-```python
-LOCAL_PROVIDER_CONFIG = {
-    "AI_PROVIDER": "deepseek",
-    "DEEPSEEK_API_KEY": "your-deepseek-api-key",
-    "DEEPSEEK_API_BASE": "https://api.deepseek.com/v1",
-    "DEEPSEEK_MODEL": "deepseek-chat",
-}
-```
-
-说明：
-
-- 上述模型名是仓库当前默认示例，可按你的账号权限替换为同提供方支持的模型
-- 修改 `config/local_provider_config.py` 后，需要重启服务
-- 真实密钥不要写入 `.env.example`、README 或前端页面
-
-## 启动方式
-
-项目有两条推荐路径：本地快速演示和外部 PostgreSQL 部署。
-
-### 路径 A：本地快速演示（SQLite）
-
-适合第一次跑通、课程展示和单机调试。
-
-#### 步骤 1：保持默认数据库配置
-
-`.env.example` 中默认的 `DATABASE_URL` 指向 PostgreSQL，但应用在启动时会自动检测数据库可用性。
-
-如果当前环境没有 PostgreSQL 驱动或服务不可达，系统会自动回退到：
-
-`data/rag_game_qa.db`
-
-这是当前项目的 SQLite 回退库。
-
-#### 步骤 2：可选，先同步一批知识
-
-如果你希望启动后就能直接问到一些内容，建议先执行一次知识同步：
-
-```powershell
-python scripts/sync_online_knowledge.py --game-id genshin
-```
-
-也可以指定查询词：
-
-```powershell
-python scripts/sync_online_knowledge.py --game-id wow --query "warrior abilities" --query "dungeon finder"
-```
-
-这条脚本会：
-
-- 自动创建当前数据库中的表
-- 自动补齐游戏记录
-- 从联网检索结果中写入知识文档
-
-如果你想做离线演示，也可以先启动服务一次创建 SQLite 表，再执行：
-
-```powershell
-python scripts/add_sample_docs.py
-```
-
-#### 步骤 3：启动服务
+### 4. 启动服务
 
 ```powershell
 python run_server.py
@@ -195,195 +206,114 @@ python run_server.py
 
 默认地址：
 
-- Web 界面：`http://localhost:8000/app`
-- Swagger 文档：`http://localhost:8000/docs`
-- 健康检查：`http://localhost:8000/health`
+| 入口 | 地址 |
+|------|------|
+| **Web 界面** | `http://localhost:8000/app` |
+| **Swagger 文档** | `http://localhost:8000/docs` |
+| **健康检查** | `http://localhost:8000/health` |
 
-#### 步骤 4：确认当前数据库状态
+---
 
-```powershell
-python scripts/check_db_status.py
+## 📚 配置机制
+
+项目配置分为两层，生效优先级如下：
+
+```
+config/local_provider_config.py  >  .env  >  代码默认值
 ```
 
-重点关注以下字段：
+**推荐做法：**
 
-- `Requested backend`
-- `Active backend`
-- `Using fallback`
-- `Active URL`
+- 服务地址、数据库、RAG 行为开关 → 放在 `.env`
+- API Key、模型名称、Jira 凭据 → 放在 `config/local_provider_config.py`
 
-如果 `Using fallback: True`，说明当前正在使用 SQLite。
+`config/local_provider_config.py` 已加入 `.gitignore`，不会被提交到远程仓库。
 
-### 路径 B：接入 PostgreSQL（Windows 一键快速极客部署）
+### 关键配置项（`.env`）
 
-适合个人开发展示环境在 Windows 使用本地持久化数据而不想安装 Docker，也可以一键搭好：
+| 字段 | 默认值 | 说明 |
+|------|--------|------|
+| `API_HOST` | `0.0.0.0` | 服务监听地址 |
+| `API_PORT` | `8000` | 服务端口 |
+| `DATABASE_URL` | `postgresql://...` | 主数据库地址 |
+| `AI_PROVIDER` | `mock` | 模型提供方 |
+| `RAG_DATA_MODE` | `database` | `database` / `memory` / `auto` |
+| `TOP_K_RESULTS` | `5` | 默认召回文档数 |
+| `ENABLE_WEB_RETRIEVAL` | `True` | 联网补充检索开关 |
+| `WEB_RETRIEVAL_TRIGGER_DOC_COUNT` | `2` | 本地文档少于该值时触发联网 |
+| `WEB_RETRIEVAL_MAX_RESULTS` | `3` | 单次联网最大结果数 |
+| `TIMEOUT_SECONDS` | `120` | LLM 请求超时（秒） |
+| `ENABLE_BERT_RERANKER` | `False` | BERT 重排序开关 |
+| `KNOWLEDGE_SYNC_SCHEDULER_ENABLED` | `False` | 自动同步计划开关 |
+| `KNOWLEDGE_SYNC_INTERVAL_MINUTES` | `60` | 自动同步间隔（分钟） |
+| `KNOWLEDGE_SYNC_GAMES` | `wow,lol,genshin` | 自动同步的游戏列表 |
 
-执行专属脚本：
-```powershell
-.\scripts\setup_postgres_windows.ps1
-```
-*(此操作无需管理员权限而且不污染环境变量，自动化下载并绑定在项目库局部运行。)*
+### 敏感配置项（`config/local_provider_config.py`）
 
-### 路径 C：接入 PostgreSQL（传统生产级与脚本部署）
+| 字段 | 说明 |
+|------|------|
+| `AI_PROVIDER` | 当前使用的模型提供方 |
+| `DEEPSEEK_API_KEY` / `DEEPSEEK_API_BASE` / `DEEPSEEK_MODEL` | DeepSeek 配置 |
+| `GEMINI_API_KEY` / `GEMINI_MODEL` | Gemini 配置 |
+| `CLAUDE_API_KEY` / `CLAUDE_MODEL` | Claude 配置 |
+| `NIM_API_KEY` / `NIM_MODEL` | NIM 配置 |
+| `JIRA_BASE_URL` / `JIRA_EMAIL` / `JIRA_API_TOKEN` / `JIRA_PROJECT_KEY` | Jira 导出 |
 
-适合需要稳定持久化、多人共享数据库或后续生产服务器部署的场景。
+---
 
-#### 步骤 1：确认 `.env` 中的数据库地址
+## 🗄️ 数据库部署
 
-```env
-DATABASE_URL=postgresql://postgres:password@localhost:5432/rag_game_qa
-```
+### 路径 A：本地快速演示（SQLite，零配置）
 
-#### 步骤 2：创建数据库
-
-```powershell
-python scripts/create_postgres_db.py
-```
-
-#### 步骤 3：初始化表并写入样例数据
-
-```powershell
-python scripts/bootstrap_external_db.py
-```
-
-这个脚本会：
-
-- 验证当前活动数据库确实是 PostgreSQL
-- 创建表结构
-- 写入 `data/sample_data.json` 中的游戏和文档
-- 在可用时生成嵌入向量
-
-#### 步骤 4：检查连接状态
-
-```powershell
-python scripts/check_db_status.py
-```
-
-如果输出中 `Using fallback: False`，说明当前已经真正接入外部 PostgreSQL。
-
-#### 步骤 5：启动服务
+系统启动时自动检测 PostgreSQL 可用性，不可达时**自动回退到 SQLite**（`data/rag_game_qa.db`），无需任何额外操作。
 
 ```powershell
 python run_server.py
 ```
 
-## 关键配置项
+可选：先同步一批知识以获得更好的问答效果：
 
-### `.env`
+```powershell
+python scripts/sync_online_knowledge.py --game-id lol
+python scripts/add_sample_docs.py
+```
 
-以下参数最常用：
+### 路径 B：Windows 一键 PostgreSQL（无需 Docker）
 
-| 字段 | 默认值 | 说明 |
-| --- | --- | --- |
-| `API_HOST` | `0.0.0.0` | 服务监听地址 |
-| `API_PORT` | `8000` | 服务端口 |
-| `DATABASE_URL` | `postgresql://postgres:password@localhost:5432/rag_game_qa` | 主数据库地址 |
-| `AI_PROVIDER` | `mock` | 默认提供方，可被 Python 配置覆盖 |
-| `RAG_DATA_MODE` | `database` | 可选 `database`、`memory`、`auto` |
-| `TOP_K_RESULTS` | `5` | 默认召回文档数 |
-| `ENABLE_WEB_RETRIEVAL` | `True` | 是否允许本地结果不足时触发联网补充 |
-| `WEB_RETRIEVAL_TRIGGER_DOC_COUNT` | `2` | 本地文档少于该值时触发联网补充 |
-| `WEB_RETRIEVAL_MAX_RESULTS` | `3` | 单次联网检索的最大结果数 |
-| `ENABLE_BERT_RERANKER` | `False` | 是否启用 BERT 重排序 |
-| `KNOWLEDGE_SYNC_SCHEDULER_ENABLED` | `False` | 是否启用自动同步计划 |
-| `KNOWLEDGE_SYNC_INTERVAL_MINUTES` | `60` | 自动同步间隔，单位分钟 |
-| `KNOWLEDGE_SYNC_GAMES` | `wow,lol,genshin` | 自动同步的游戏列表 |
+```powershell
+.\scripts\setup_postgres_windows.ps1
+```
 
-### `config/local_provider_config.py`
+> 无需管理员权限，自动下载、解压并绑定在项目本地。
 
-这个文件建议保存所有敏感配置，例如：
+### 路径 C：生产级 PostgreSQL
 
-- `GEMINI_API_KEY`
-- `CLAUDE_API_KEY`
-- `NIM_API_KEY`
-- `JIRA_API_TOKEN`
-- 具体模型名
+```powershell
+# 1. 配置 .env 中的 DATABASE_URL
+# 2. 创建数据库
+python scripts/create_postgres_db.py
 
-常用字段如下：
+# 3. 初始化表与样例数据
+python scripts/bootstrap_external_db.py
 
-| 字段 | 说明 |
-| --- | --- |
-| `AI_PROVIDER` | 当前使用的模型提供方 |
-| `GEMINI_API_KEY` | Gemini API Key |
-| `GEMINI_MODEL` | Gemini 模型名 |
-| `CLAUDE_API_KEY` | Claude API Key |
-| `CLAUDE_MODEL` | Claude 模型名 |
-| `NIM_API_KEY` | NVIDIA NIM API Key |
-| `NIM_MODEL` | NIM 使用的模型名 |
-| `JIRA_BASE_URL` | Jira 实例地址 |
-| `JIRA_EMAIL` | Jira 登录邮箱 |
-| `JIRA_API_TOKEN` | Jira API Token |
-| `JIRA_PROJECT_KEY` | Jira 项目标识 |
+# 4. 确认连接状态
+python scripts/check_db_status.py
 
-## 图形界面使用
+# 5. 启动
+python run_server.py
+```
 
-启动后访问：
+---
 
-`http://localhost:8000/app`
+## 🔌 API 接口
 
-界面主要分为四个区域：
+Swagger 交互文档：`http://localhost:8000/docs`
 
-### 1. 系统概览
+### 问答
 
-用于查看：
-
-- 当前数据库后端
-- 当前 provider 状态
-- 已接入模块
-- 项目接口清单
-- 模块核查结果
-
-### 2. 知识同步
-
-用于：
-
-- 同步当前游戏的联网知识
-- 配置自动同步计划
-- 立即执行一次计划任务
-- 查看最近同步状态
-- 预览或创建 Jira 导出
-
-### 3. 问答演示
-
-建议使用顺序：
-
-1. 选择游戏
-2. 选择用户类型
-3. 选择来源数量
-4. 按需勾选联网补充、分步引导、祖孙协作模式
-5. 输入问题并提交
-
-结果页会返回：
-
-- 回答内容
-- 置信度
-- 来源文档
-- 分步引导结果
-- 协作摘要
-
-### 4. 数据看板
-
-可查看：
-
-- 近 7 天查询次数
-- 平均置信度
-- 平均耗时
-- 高频问题
-- 优先级报告
-
-## API 使用
-
-Swagger 文档：
-
-`http://localhost:8000/docs`
-
-下面列几个常用接口。
-
-### 1. 问答接口
-
-`POST /api/v1/qa/ask`
-
-示例请求：
+```
+POST /api/v1/qa/ask
+```
 
 ```json
 {
@@ -392,18 +322,17 @@ Swagger 文档：
   "top_k": 5,
   "include_sources": true,
   "enable_web_retrieval": true,
-  "user_context": {
-    "user_id": "demo-user",
-    "user_type": "normal"
-  }
+  "include_assistive_guide": false,
+  "include_family_guide": false,
+  "user_context": { "user_id": "web-user", "user_type": "normal" }
 }
 ```
 
-### 2. 联网知识同步
+### 知识同步
 
-`POST /api/v1/project/knowledge-sync`
-
-示例请求：
+```
+POST /api/v1/project/knowledge-sync
+```
 
 ```json
 {
@@ -412,58 +341,188 @@ Swagger 文档：
 }
 ```
 
-### 3. 自动同步计划
+### 同步调度
 
-- `GET /api/v1/project/knowledge-sync/scheduler`
-- `POST /api/v1/project/knowledge-sync/scheduler`
-- `POST /api/v1/project/knowledge-sync/scheduler/run`
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/project/knowledge-sync/scheduler` | 查看调度状态 |
+| POST | `/api/v1/project/knowledge-sync/scheduler` | 配置调度计划 |
+| POST | `/api/v1/project/knowledge-sync/scheduler/run` | 立即执行一次 |
 
-### 4. 统计与分析
+### 统计与分析
 
-- `GET /api/v1/analytics/query-stats`
-- `GET /api/v1/analytics/priority-report`
-- `POST /api/v1/analytics/feedback`
-- `POST /api/v1/analytics/jira/export`
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/analytics/query-stats` | 查询统计 |
+| GET | `/api/v1/analytics/priority-report` | 优先级报告 |
+| POST | `/api/v1/analytics/feedback` | 提交反馈 |
+| POST | `/api/v1/analytics/jira/export` | 导出到 Jira |
 
-### 5. 模块核查
+### 运行时配置
 
-`GET /api/v1/project/module-audit`
-
-这个接口可以直接查看当前项目设计模块的实现状态。
-
-## 常用脚本
-
-```powershell
-python run_server.py
-python scripts/check_db_status.py
-python scripts/sync_online_knowledge.py --game-id wow
-python scripts/create_postgres_db.py
-python scripts/bootstrap_external_db.py
-python scripts/add_sample_docs.py
-python scripts/simple_test.py
-python scripts/test_all.py
+```
+GET  /api/v1/runtime/config
+PUT  /api/v1/runtime/config
 ```
 
-脚本用途说明：
+### 模块核查
 
-- `run_server.py`：启动服务
-- `check_db_status.py`：查看当前实际使用的数据库后端
-- `sync_online_knowledge.py`：拉取联网知识并写入数据库
-- `create_postgres_db.py`：创建 PostgreSQL 数据库
-- `bootstrap_external_db.py`：初始化外部 PostgreSQL 并写入样例数据
-- `add_sample_docs.py`：添加本地样例文档
-- `setup_postgres_windows.ps1`：Windows 环境下一键轻量安装并挂载 PostgreSQL
-- `simple_test.py` / `test_all.py`：基础检查与测试
+```
+GET /api/v1/project/module-audit
+```
 
-补充说明：
+### 多模态（实验性）
 
-- `scripts/init_db.py` 更适合在 PostgreSQL 已经准备好之后使用
-- 如果本机没有 PostgreSQL，不建议把 `scripts/init_db.py` 当作第一次启动入口
-- 对于纯本地演示，优先使用 `run_server.py` + SQLite 回退，或使用 `sync_online_knowledge.py` 先补一批数据
+```
+POST /api/v1/multimodal/image-describe    # 图像描述
+POST /api/v1/multimodal/speech-recognize   # 语音识别
+```
 
-## Jira 配置
+### 健康检查
 
-如果需要把反馈导出到 Jira，可在 `config/local_provider_config.py` 中增加：
+```
+GET /health
+GET /api/v1/health/detailed
+```
+
+---
+
+## 🧠 LLM 提示词工程
+
+系统在 `core/generator/llm_generator.py` 中实现了精心设计的提示词策略：
+
+### 黑话/俗名容忍规则
+
+LLM 被指示使用内建的游戏知识自动映射社区俗称到官方名称：
+
+- "皇子" → 德玛西亚皇子·嘉文四世
+- "瞎子" → 盲僧·李青
+- "大树" → 扭曲树精·茂凯
+
+### 详尽输出规则
+
+强制要求 LLM 提供结构化的长篇详细回答，包含：分阶段分析、数值数据、装备路线、符文推荐等，防止输出被截断或过于简短。
+
+### 安全兜底
+
+当检索到的知识库内容不足且无法通过游戏常识判断时，LLM 会明确告知用户"未找到相关资料"，不会编造信息。
+
+---
+
+## 🛠️ 常用脚本
+
+| 脚本 | 用途 |
+|------|------|
+| `python run_server.py` | 启动服务 |
+| `python scripts/check_db_status.py` | 查看当前数据库后端状态 |
+| `python scripts/sync_online_knowledge.py --game-id wow` | 拉取联网知识 |
+| `python scripts/add_sample_docs.py` | 添加本地示例文档 |
+| `python scripts/create_postgres_db.py` | 创建 PostgreSQL 数据库 |
+| `python scripts/bootstrap_external_db.py` | 初始化 PostgreSQL 并写入样例 |
+| `.\scripts\setup_postgres_windows.ps1` | Windows 一键安装 PostgreSQL |
+| `python scripts/simple_test.py` | 基础功能检查 |
+| `python scripts/test_all.py` | 完整测试套件 |
+
+---
+
+## 🔧 前端技术实现
+
+### 粒子动画 Logo
+
+使用 HTML5 Canvas 绘制 Plexus 粒子网络作为品牌标识，粒子在 32×32 画布中实时运动并连线，营造科技感。
+
+### 会话管理
+
+- 基于 `localStorage` 的多会话持久化存储
+- 每个会话独立绑定游戏领域 (`gameId`)
+- 会话标题自动从第一个问题中提取
+- 删除会话时自动继承当前活跃的游戏领域，不会强制重置
+
+### 手风琴折叠
+
+游戏领域列表支持点击标题折叠/展开，带有 CSS 过渡动画（`max-height` + `opacity` 渐变），箭头图标同步旋转。
+
+### 头像交互动画
+
+| 头像 | CSS 动画 |
+|------|----------|
+| 机器人 | `avatar-spin-glow`：360° 旋转 + 蓝色 `drop-shadow` 光晕渐变 |
+| 用户 | `avatar-bounce`：弹性缩放 + 左右摇晃 |
+| 通用 | `ripple-expand`：从头像中心扩散的水波纹环 |
+
+### 请求中止 (AbortController)
+
+- 发送按钮在请求期间变为红色脉冲 ⏹ 停止按钮
+- 使用 `AbortController` + `signal` 实现真正的 HTTP 请求取消
+- 中止后从 DOM 和 `localStorage` 中完全删除用户消息和加载气泡
+- 原问题自动回填到输入框供编辑后重新发送
+
+### 自动重试
+
+- 前端检测响应文本中的失败关键词（`连接失败`、`请求异常`、`请稍后重试`、`timeout`）
+- 自动循环重试最多 3 次，加载气泡实时显示重试进度
+- 3 次失败后允许点击错误消息还原问题
+
+### 静态资源缓存控制
+
+服务器中间件对 `/assets/` 路径强制设置 `Cache-Control: no-store, no-cache, max-age=0, must-revalidate`，配合 `?v=` 版本号参数，确保每次重启后浏览器加载最新文件。
+
+---
+
+## ❓ 故障排查
+
+### 启动时提示 PostgreSQL 连接失败
+
+正常现象。系统会自动回退到 SQLite，不影响使用。检查方式：
+
+```powershell
+python scripts/check_db_status.py
+```
+
+关注 `Using fallback` 和 `Active backend` 字段。
+
+### DeepSeek 连接失败 / 超时
+
+1. 检查 API Key 是否正确配置在 `config/local_provider_config.py`
+2. 检查 `DEEPSEEK_API_BASE` 是否可达（可能需要代理）
+3. 系统默认超时已设置为 **120 秒**，且前端自动重试 **3 次**
+4. 如果使用 SiliconFlow 等三方托管，高峰期可能需要更长等待
+
+### 改了 API Key 但没有生效
+
+按顺序检查：
+
+1. 修改的是否是 `config/local_provider_config.py`（而不是 `.env.example`）
+2. `AI_PROVIDER` 是否与密钥类型匹配
+3. 修改后是否重启了服务
+
+### 问答结果为空或结果质量差
+
+1. 数据库中可能尚未写入足够的知识文档
+2. 执行知识同步：`python scripts/sync_online_knowledge.py --game-id lol`
+3. 确保 `ENABLE_WEB_RETRIEVAL` 为 `True`
+
+### 浏览器加载的是旧版界面
+
+1. 已在服务端强制禁用 `/assets/` 路径的缓存
+2. 按 `Ctrl + F5` 硬刷新页面
+3. 检查 HTML 中的 `?v=` 版本号是否已更新
+
+---
+
+## 🔐 安全说明
+
+- `config/local_provider_config.py` 已加入 `.gitignore`，不会提交到 Git
+- `.venv` 和 `__pycache__` 已停止跟踪
+- 服务端日志对敏感信息（API Key、数据库连接串）做自动脱敏处理
+- HTTP 响应头自动设置 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy` 等安全头
+- 不建议将真实密钥写入前端页面或公开脚本
+
+---
+
+## 🤝 Jira 集成
+
+在 `config/local_provider_config.py` 中配置 Jira 凭据：
 
 ```python
 LOCAL_PROVIDER_CONFIG = {
@@ -474,64 +533,10 @@ LOCAL_PROVIDER_CONFIG = {
 }
 ```
 
-配置完成后，可以在图形界面中预览当前游戏导出，也可以直接调用：
+配置完成后可在 Web 界面中预览导出，或调用 `POST /api/v1/analytics/jira/export`。
 
-`POST /api/v1/analytics/jira/export`
+---
 
-## 故障排查
+## 📄 License
 
-### 1. 启动时提示 PostgreSQL 连接失败
-
-这通常说明发生了两种情况之一：
-
-- PostgreSQL 驱动未安装
-- PostgreSQL 服务不可达
-
-如果服务随后仍然正常启动，通常表示系统已经自动切换到 SQLite，不影响本地演示。
-
-### 2. `scripts/init_db.py` 直接失败
-
-这不是前端或 API 的问题，而是该脚本默认按 `.env` 中的 `DATABASE_URL` 直接连接数据库。
-
-如果当前没有可用 PostgreSQL，请改用以下流程：
-
-1. `python run_server.py`
-2. `python scripts/check_db_status.py`
-3. `python scripts/sync_online_knowledge.py --game-id genshin`
-
-### 3. 改了 API Key 但没有生效
-
-按顺序检查：
-
-1. 是否修改的是 `config/local_provider_config.py`
-2. `AI_PROVIDER` 是否与对应密钥匹配
-3. 修改后是否重启了 `python run_server.py`
-
-### 4. 问答能返回，但来源为空或结果较弱
-
-通常有以下原因：
-
-- 本地数据库中尚未写入足够文档
-- 嵌入模型没有成功加载
-- 联网检索被关闭
-
-建议先执行一次：
-
-```powershell
-python scripts/sync_online_knowledge.py --game-id genshin
-```
-
-### 5. 如何确认当前到底是 SQLite 还是 PostgreSQL
-
-```powershell
-python scripts/check_db_status.py
-```
-
-输出中的 `Active backend` 和 `Using fallback` 即为最终结果。
-
-## 安全说明
-
-- `config/local_provider_config.py` 已被忽略，不会进入 Git
-- `.venv` 和 `__pycache__` 已停止跟踪，不会再推送到远程仓库
-- 服务端日志会对敏感信息做脱敏处理
-- 不建议把真实密钥写入前端页面或公开脚本
+本项目仅供学习与研究用途。
